@@ -3,6 +3,8 @@ import { useParams, Link } from "react-router-dom";
 import API from "../utils/api.js";
 import { useAuthStore } from "../store/useAuthStore.js";
 import { encryptFileForVault } from "../utils/cryptoUtils.js";
+import { decryptFileForVault } from "../utils/cryptoUtils.js";
+
 
 export default function VaultDetailPage() {
   const { id } = useParams();
@@ -82,6 +84,49 @@ export default function VaultDetailPage() {
       </div>
     );
 
+    const handleDecryptDownload = async (item) => {
+      try {
+        setMessage(`🔄 Downloading & decrypting ${item.metadata?.name}...`);
+    
+        // 1️⃣ Fetch encrypted data from the server
+        const res = await fetch(item.fileUrl);
+        const encryptedArrayBuffer = await res.arrayBuffer();
+    
+        // 2️⃣ Convert ArrayBuffer → Base64 safely (chunked)
+        const array = new Uint8Array(encryptedArrayBuffer);
+        let binary = "";
+        const chunkSize = 0x8000;
+        for (let i = 0; i < array.length; i += chunkSize) {
+          binary += String.fromCharCode.apply(null, array.subarray(i, i + chunkSize));
+        }
+        const encryptedDataB64 = btoa(binary);
+    
+        // 3️⃣ Decrypt with vault key
+        const decryptedArrayBuffer = await decryptFileForVault(
+          encryptedDataB64,
+          item.encKey,
+          id
+        );
+    
+        // 4️⃣ Create blob & trigger download
+        const blob = new Blob([decryptedArrayBuffer], {
+          type: item.metadata?.type || "application/octet-stream",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = item.metadata?.name || "decrypted_file";
+        a.click();
+        URL.revokeObjectURL(url);
+    
+        setMessage(`✅ ${item.metadata?.name} decrypted successfully!`);
+      } catch (err) {
+        console.error("❌ Decryption failed:", err);
+        setMessage("❌ Failed to decrypt or download file.");
+      }
+    };
+    
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-3xl mx-auto bg-white shadow-lg rounded-2xl p-6">
@@ -127,43 +172,45 @@ export default function VaultDetailPage() {
         </div>
 
         <div className="border-t pt-4">
-          <h2 className="text-xl font-semibold mb-3 text-gray-700">
-            Stored Items
-          </h2>
+  <h2 className="text-xl font-semibold mb-3 text-gray-700">
+    Stored Items
+  </h2>
 
-          {items.length === 0 ? (
-            <p className="text-gray-500">No files uploaded yet.</p>
-          ) : (
-            <ul className="space-y-3">
-              {items.map((item) => (
-                <li
-                  key={item._id}
-                  className="flex items-center justify-between border p-3 rounded hover:bg-gray-50"
-                >
-                  <div>
-                    <p className="font-medium text-gray-800">
-                      {item.metadata?.name || "Unnamed File"}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {item.metadata?.type || "Unknown"} •{" "}
-                      {(item.metadata?.size / 1024).toFixed(1)} KB
-                    </p>
-                  </div>
-                  {item.fileUrl && (
-                    <a
-                      href={item.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
-                      View
-                    </a>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+  {items.length === 0 ? (
+    <p className="text-gray-500">No files uploaded yet.</p>
+  ) : (
+    <ul className="space-y-3">
+      {items.map((item) => (
+        <li
+          key={item._id}
+          className="flex items-center justify-between border p-3 rounded hover:bg-gray-50"
+        >
+          <div>
+            <p className="font-medium text-gray-800">
+              {item.metadata?.name || "Unnamed File"}
+            </p>
+            <p className="text-sm text-gray-500">
+              {item.metadata?.type || "Unknown"} •{" "}
+              {(item.metadata?.size / 1024).toFixed(1)} KB
+            </p>
+          </div>
+
+          <div className="flex space-x-3">
+            {item.fileUrl && (
+              <button
+                onClick={() => handleDecryptDownload(item)}
+                className="text-blue-600 hover:underline"
+              >
+                🔓 Decrypt & Download
+              </button>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
+  )}
+</div>
+
 
         <div className="mt-6 text-center">
           <Link
