@@ -7,6 +7,8 @@ import { useAuthStore } from "./store/useAuthStore.js";
 import VaultsPage from "./pages/VaultsPage.jsx";
 import VaultDetailPage from "./pages/VaultDetailPage.jsx";
 import ReleaseReviewPage from "./pages/ReleaseReviewPage.jsx";
+import ReleaseDashboard from "./pages/ReleaseDashboard.jsx";
+import AuditLogPage from "./pages/AuditLogPage.jsx";
 
 // 🧩 Protected route component
 function ProtectedRoute({ children }) {
@@ -31,8 +33,9 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/vaults" element={<VaultsPage />} />
         <Route path="/vaults/:id" element={<VaultDetailPage />} />
+        <Route path="/releases" element={<ReleaseDashboard />} /> 
         <Route path="/releases/review" element={<ReleaseReviewPage />} />
-
+        <Route path="/logs" element={<AuditLogPage />} />
 
         {/* ✅ Protected route for logged-in users */}
         <Route

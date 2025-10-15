@@ -121,8 +121,8 @@ export default function VaultDetailPage() {
     
         setMessage(`✅ ${item.metadata?.name} decrypted successfully!`);
       } catch (err) {
-        console.error("❌ Decryption failed:", err);
-        setMessage("❌ Failed to decrypt or download file.");
+        console.error(" Decryption failed:", err);
+        setMessage(" Failed to decrypt or download file.");
       }
     };
     
@@ -134,7 +134,7 @@ export default function VaultDetailPage() {
           Vault: {vault.name}
         </h1>
         <p className="text-gray-500 mb-6">
-          Owner: {user?.name || "Unknown"} | Created:{" "}
+          Owner: {user?.firstName || "Unknown"} | Created:{" "}
           {new Date(vault.createdAt).toLocaleString()}
         </p>
 
