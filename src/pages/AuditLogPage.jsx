@@ -11,7 +11,7 @@ export default function AuditLogPage() {
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const res = await API.get("/api/logs", {
+        const res = await API.get("/api/auditlogs", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setLogs(res.data);
@@ -31,7 +31,7 @@ export default function AuditLogPage() {
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-5xl mx-auto bg-white shadow-lg rounded-2xl p-6">
-        <h1 className="text-3xl font-bold mb-6 text-gray-800">📜 Audit Logs</h1>
+        <h1 className="text-3xl font-bold mb-6 text-gray-800"> Audit Logs</h1>
 
         {logs.length === 0 ? (
           <p className="text-gray-500">No logs recorded yet.</p>

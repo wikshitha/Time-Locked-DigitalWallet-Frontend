@@ -30,7 +30,7 @@ export default function VaultsPage() {
         setVaults(res.data);
       } catch (err) {
         console.error(err);
-        setMessage("❌ Failed to fetch vaults");
+        setMessage(" Failed to fetch vaults");
       } finally {
         setLoading(false);
       }
@@ -70,7 +70,7 @@ export default function VaultsPage() {
     } catch (err) {
       console.error(err);
       setMessage(
-        "❌ Failed to create vault: " +
+        " Failed to create vault: " +
           (err.response?.data?.error || err.message)
       );
     }
@@ -110,7 +110,7 @@ export default function VaultsPage() {
       setMessage("✅ Vault updated successfully!");
     } catch (err) {
       console.error(err);
-      setMessage("❌ Update failed: " + (err.response?.data?.message || err.message));
+      setMessage(" Update failed: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -125,7 +125,7 @@ export default function VaultsPage() {
       setMessage("🗑️ Vault deleted successfully");
     } catch (err) {
       console.error(err);
-      setMessage("❌ Failed to delete vault");
+      setMessage(" Failed to delete vault");
     }
   };
 
@@ -237,19 +237,19 @@ export default function VaultsPage() {
                     onClick={() => handleEditVault(vault)}
                     className="text-yellow-600 hover:text-yellow-800"
                   >
-                    ✏️
+                    Edit Vault
                   </button>
                   <button
                     onClick={() => handleDeleteVault(vault._id)}
                     className="text-red-600 hover:text-red-800"
                   >
-                    🗑️
+                    Delete
                   </button>
                   <button
                     onClick={() => navigate(`/vaults/${vault._id}`)}
                     className="text-blue-600 hover:text-blue-800"
                   >
-                    🔍 View
+                     View
                   </button>
                 </div>
               </li>

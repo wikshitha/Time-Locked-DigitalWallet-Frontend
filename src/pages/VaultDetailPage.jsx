@@ -201,7 +201,7 @@ export default function VaultDetailPage() {
                 onClick={() => handleDecryptDownload(item)}
                 className="text-blue-600 hover:underline"
               >
-                🔓 Decrypt & Download
+                 Decrypt & Download
               </button>
             )}
           </div>

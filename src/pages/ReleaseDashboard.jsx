@@ -56,7 +56,7 @@ export default function ReleaseDashboard() {
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-5xl mx-auto bg-white shadow-lg rounded-2xl p-6">
         <h1 className="text-3xl font-bold mb-4 text-gray-800">
-          🔐 Release Dashboard
+           Release Dashboard
         </h1>
 
         {releases.length === 0 ? (
@@ -71,7 +71,7 @@ export default function ReleaseDashboard() {
                   className="p-4 border rounded-lg shadow-sm hover:shadow-md transition bg-gray-50"
                 >
                   <h2 className="text-lg font-semibold text-gray-700">
-                    {release.vaultId?.name || "Unnamed Vault"}
+                    {release.vaultId?.title || "Unnamed Vault"}
                   </h2>
                   <p className="text-sm text-gray-500">
                     Status: {release.status}

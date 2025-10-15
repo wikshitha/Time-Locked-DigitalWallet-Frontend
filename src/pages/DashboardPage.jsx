@@ -8,7 +8,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
       <div className="bg-white shadow-lg rounded-2xl p-8 w-full max-w-md text-center">
         <h1 className="text-3xl font-bold text-gray-800 mb-4">
-          Welcome, {user?.name || "User"} 👋
+          Welcome, {user?.firstName || "User"} 
         </h1>
 
         <p className="text-gray-600 mb-6">
@@ -20,21 +20,21 @@ export default function DashboardPage() {
             to="/vaults"
             className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
           >
-            🔐 Manage Vaults
+             Manage Vaults
           </Link>
 
           <Link
             to="/releases"
             className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition"
           >
-            ⏳ View Releases
+             View Releases
           </Link>
 
           <Link
             to="/logs"
             className="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition"
           >
-            📜 View Audit Logs
+             View Audit Logs
           </Link>
         </div>
 
