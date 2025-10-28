@@ -2,9 +2,15 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import API from "../utils/api.js";
 import { useAuthStore } from "../store/useAuthStore.js";
-import { encryptFileForVault } from "../utils/cryptoUtils.js";
-import { decryptFileForVault } from "../utils/cryptoUtils.js";
-
+import {
+  encryptFileForVault,
+  decryptFileForVault,
+  importVaultKey,
+  ensureVaultKey,
+  encryptVaultKeyForBackup,
+  decryptVaultKeyFromBackup,
+  bufToBase64,
+} from "../utils/cryptoUtils.js";
 
 export default function VaultDetailPage() {
   const { id } = useParams();
@@ -15,8 +21,11 @@ export default function VaultDetailPage() {
   const [file, setFile] = useState(null);
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [restoringKey, setRestoringKey] = useState(false);
 
-  // Fetch vault details
+  //
+  // 🧩 Step 1: Fetch vault details
+  //
   useEffect(() => {
     const fetchVault = async () => {
       try {
@@ -30,11 +39,49 @@ export default function VaultDetailPage() {
         setMessage("❌ Failed to load vault details");
       }
     };
-
     if (token) fetchVault();
   }, [id, token]);
 
-  // Handle encrypted upload
+  //
+  // 🧩 Step 2: Attempt automatic vault key restore if missing
+  //
+  useEffect(() => {
+    const tryRestoreVaultKey = async () => {
+      const existingKey = await importVaultKey(id);
+      if (existingKey) return; // already have the key locally
+
+      try {
+        setRestoringKey(true);
+        setMessage("🔐 No local vault key found — attempting restore...");
+
+        const res = await API.get(`/api/keybackup/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const encryptedVaultKey = res.data.encryptedVaultKey;
+        if (!encryptedVaultKey) throw new Error("No backup found on server");
+
+        const decryptedVaultKeyB64 = await decryptVaultKeyFromBackup(
+          encryptedVaultKey,
+          user.email // or ask password
+        );
+
+        localStorage.setItem(`vaultKey_${id}`, decryptedVaultKeyB64);
+        setMessage("✅ Vault key restored successfully!");
+      } catch (err) {
+        console.warn("Vault key restore failed:", err);
+        setMessage("⚠️ Vault key restore failed. You may need to reupload it.");
+      } finally {
+        setRestoringKey(false);
+      }
+    };
+
+    if (id && token) tryRestoreVaultKey();
+  }, [id, token, user?.email]);
+
+  //
+  // 🧩 Step 3: Upload & Encrypt a file
+  //
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!file) return alert("Please select a file");
@@ -56,18 +103,27 @@ export default function VaultDetailPage() {
       // Send to backend
       const res = await API.post(
         "/api/upload",
-        {
-          vaultId: id,
-          encryptedData,
-          encKey,
-          metadata,
-        },
+        { vaultId: id, encryptedData, encKey, metadata },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
+      // ✅ Auto-backup vault key after first encryption
+      const vaultKeyB64 = localStorage.getItem(`vaultKey_${id}`);
+      if (vaultKeyB64) {
+        const encryptedVaultKey = await encryptVaultKeyForBackup(
+          vaultKeyB64,
+          user.email // could be replaced by user password for better security
+        );
+        await API.post(
+          "/api/keybackup/upload",
+          { vaultId: id, encryptedVaultKey },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+
       // Update UI
       setItems((prev) => [...prev, res.data.item]);
-      setMessage("✅ File encrypted & uploaded successfully!");
+      setMessage("✅ File encrypted, uploaded, and vault key backed up!");
       setFile(null);
     } catch (err) {
       console.error("Upload failed:", err);
@@ -77,55 +133,60 @@ export default function VaultDetailPage() {
     }
   };
 
+  //
+  // 🧩 Step 4: Decrypt & Download file
+  //
+  const handleDecryptDownload = async (item) => {
+    try {
+      setMessage(`🔄 Downloading & decrypting ${item.metadata?.name}...`);
+
+      // 1️⃣ Fetch encrypted data
+      const res = await fetch(item.fileUrl);
+      const encryptedArrayBuffer = await res.arrayBuffer();
+
+      // 2️⃣ Convert to Base64
+      const array = new Uint8Array(encryptedArrayBuffer);
+      let binary = "";
+      const chunkSize = 0x8000;
+      for (let i = 0; i < array.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, array.subarray(i, i + chunkSize));
+      }
+      const encryptedDataB64 = btoa(binary);
+
+      // 3️⃣ Decrypt
+      const decryptedArrayBuffer = await decryptFileForVault(
+        encryptedDataB64,
+        item.encKey,
+        id
+      );
+
+      // 4️⃣ Download decrypted blob
+      const blob = new Blob([decryptedArrayBuffer], {
+        type: item.metadata?.type || "application/octet-stream",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = item.metadata?.name || "decrypted_file";
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setMessage(`✅ ${item.metadata?.name} decrypted successfully!`);
+    } catch (err) {
+      console.error("Decryption failed:", err);
+      setMessage("❌ Failed to decrypt or download file.");
+    }
+  };
+
+  //
+  // 🧩 Render UI
+  //
   if (!vault)
     return (
       <div className="flex h-screen items-center justify-center text-gray-600">
         Loading vault...
       </div>
     );
-
-    const handleDecryptDownload = async (item) => {
-      try {
-        setMessage(`🔄 Downloading & decrypting ${item.metadata?.name}...`);
-    
-        // 1️⃣ Fetch encrypted data from the server
-        const res = await fetch(item.fileUrl);
-        const encryptedArrayBuffer = await res.arrayBuffer();
-    
-        // 2️⃣ Convert ArrayBuffer → Base64 safely (chunked)
-        const array = new Uint8Array(encryptedArrayBuffer);
-        let binary = "";
-        const chunkSize = 0x8000;
-        for (let i = 0; i < array.length; i += chunkSize) {
-          binary += String.fromCharCode.apply(null, array.subarray(i, i + chunkSize));
-        }
-        const encryptedDataB64 = btoa(binary);
-    
-        // 3️⃣ Decrypt with vault key
-        const decryptedArrayBuffer = await decryptFileForVault(
-          encryptedDataB64,
-          item.encKey,
-          id
-        );
-    
-        // 4️⃣ Create blob & trigger download
-        const blob = new Blob([decryptedArrayBuffer], {
-          type: item.metadata?.type || "application/octet-stream",
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = item.metadata?.name || "decrypted_file";
-        a.click();
-        URL.revokeObjectURL(url);
-    
-        setMessage(`✅ ${item.metadata?.name} decrypted successfully!`);
-      } catch (err) {
-        console.error(" Decryption failed:", err);
-        setMessage(" Failed to decrypt or download file.");
-      }
-    };
-    
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
@@ -138,6 +199,7 @@ export default function VaultDetailPage() {
           {new Date(vault.createdAt).toLocaleString()}
         </p>
 
+        {/* Upload Section */}
         <div className="mb-8 border-t pt-4">
           <h2 className="text-xl font-semibold mb-3 text-gray-700">
             Upload Encrypted File
@@ -163,7 +225,9 @@ export default function VaultDetailPage() {
           {message && (
             <p
               className={`mt-3 text-sm ${
-                message.startsWith("✅") ? "text-green-600" : "text-red-500"
+                message.startsWith("✅") || message.startsWith("🔐")
+                  ? "text-green-600"
+                  : "text-red-500"
               }`}
             >
               {message}
@@ -171,46 +235,46 @@ export default function VaultDetailPage() {
           )}
         </div>
 
+        {/* File List */}
         <div className="border-t pt-4">
-  <h2 className="text-xl font-semibold mb-3 text-gray-700">
-    Stored Items
-  </h2>
+          <h2 className="text-xl font-semibold mb-3 text-gray-700">
+            Stored Items
+          </h2>
 
-  {items.length === 0 ? (
-    <p className="text-gray-500">No files uploaded yet.</p>
-  ) : (
-    <ul className="space-y-3">
-      {items.map((item) => (
-        <li
-          key={item._id}
-          className="flex items-center justify-between border p-3 rounded hover:bg-gray-50"
-        >
-          <div>
-            <p className="font-medium text-gray-800">
-              {item.metadata?.name || "Unnamed File"}
-            </p>
-            <p className="text-sm text-gray-500">
-              {item.metadata?.type || "Unknown"} •{" "}
-              {(item.metadata?.size / 1024).toFixed(1)} KB
-            </p>
-          </div>
+          {items.length === 0 ? (
+            <p className="text-gray-500">No files uploaded yet.</p>
+          ) : (
+            <ul className="space-y-3">
+              {items.map((item) => (
+                <li
+                  key={item._id}
+                  className="flex items-center justify-between border p-3 rounded hover:bg-gray-50"
+                >
+                  <div>
+                    <p className="font-medium text-gray-800">
+                      {item.metadata?.name || "Unnamed File"}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {item.metadata?.type || "Unknown"} •{" "}
+                      {(item.metadata?.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
 
-          <div className="flex space-x-3">
-            {item.fileUrl && (
-              <button
-                onClick={() => handleDecryptDownload(item)}
-                className="text-blue-600 hover:underline"
-              >
-                 Decrypt & Download
-              </button>
-            )}
-          </div>
-        </li>
-      ))}
-    </ul>
-  )}
-</div>
-
+                  <div className="flex space-x-3">
+                    {item.fileUrl && (
+                      <button
+                        onClick={() => handleDecryptDownload(item)}
+                        className="text-blue-600 hover:underline"
+                      >
+                        Decrypt & Download
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         <div className="mt-6 text-center">
           <Link

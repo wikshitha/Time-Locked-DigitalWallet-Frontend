@@ -54,7 +54,6 @@ export const ensureVaultKey = async (vaultId) => {
   let key = await importVaultKey(vaultId);
   if (!key) {
     key = await generateAndStoreVaultKey(vaultId);
-    // IMPORTANT: inform user to back up this vault key securely in production
     console.warn(`Vault key generated and stored locally for vault ${vaultId}. Back it up securely!`);
   }
   return key;
@@ -65,53 +64,43 @@ export const ensureVaultKey = async (vaultId) => {
 // - returns { encryptedData: base64(iv + ciphertext), encKey: base64(wrappedContentKey) }
 //
 export const encryptFileForVault = async (file, vaultId) => {
-  // ensure vaultKey exists (AES-KW)
   const vaultKey = await ensureVaultKey(vaultId);
 
-  // generate content key (AES-GCM) for file encryption
   const contentKey = await subtle.generateKey(
     { name: "AES-GCM", length: 256 },
     true,
     ["encrypt", "decrypt"]
   );
 
-  // read file as ArrayBuffer
   const arrayBuffer = await file.arrayBuffer();
-
-  // create 12-byte iv (recommended for AES-GCM)
   const iv = window.crypto.getRandomValues(new Uint8Array(12));
 
-  // encrypt file bytes with contentKey (AES-GCM)
   const cipherBuffer = await subtle.encrypt(
-    { name: "AES-GCM", iv: iv },
+    { name: "AES-GCM", iv },
     contentKey,
     arrayBuffer
   );
 
-  // wrap (encrypt) the contentKey with vaultKey using AES-KW
-  // exportKey raw for contentKey and wrap (wrapKey supports passing CryptoKey directly)
   const wrappedKey = await subtle.wrapKey("raw", contentKey, vaultKey, { name: "AES-KW" });
 
-  // package encryptedData: concat iv + ciphertext
   const ivAndCipher = new Uint8Array(iv.byteLength + cipherBuffer.byteLength);
   ivAndCipher.set(iv, 0);
   ivAndCipher.set(new Uint8Array(cipherBuffer), iv.byteLength);
 
   return {
-    encryptedData: bufToBase64(ivAndCipher.buffer), // base64 string
-    encKey: bufToBase64(wrappedKey), // wrapped contentKey (base64)
+    encryptedData: bufToBase64(ivAndCipher.buffer),
+    encKey: bufToBase64(wrappedKey),
   };
 };
 
 //
 // decryptFileForVault(encryptedDataBase64, encKeyBase64, vaultId)
-// - returns an ArrayBuffer with plaintext (for client-side decryption)
+// - returns an ArrayBuffer with plaintext
 //
 export const decryptFileForVault = async (encryptedDataB64, encKeyB64, vaultId) => {
   const vaultKey = await importVaultKey(vaultId);
   if (!vaultKey) throw new Error("Vault key not found locally (cannot decrypt)");
 
-  // unwrap contentKey
   const wrappedBuf = base64ToBuf(encKeyB64);
   const contentKey = await subtle.unwrapKey(
     "raw",
@@ -123,12 +112,66 @@ export const decryptFileForVault = async (encryptedDataB64, encKeyB64, vaultId) 
     ["decrypt"]
   );
 
-  // split iv + ciphertext
   const combined = new Uint8Array(base64ToBuf(encryptedDataB64));
   const iv = combined.slice(0, 12);
   const ciphertext = combined.slice(12).buffer;
 
-  // decrypt
   const plain = await subtle.decrypt({ name: "AES-GCM", iv }, contentKey, ciphertext);
-  return plain; // ArrayBuffer
+  return plain;
 };
+
+//
+// 🔐 Password-based encryption for vault key backup/restore
+//
+
+// derive AES-GCM key from password using PBKDF2
+async function deriveKeyFromPassword(password, salt) {
+  const enc = new TextEncoder();
+  const baseKey = await subtle.importKey(
+    "raw",
+    enc.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+  return subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+    baseKey,
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"]
+  );
+}
+
+// Encrypt vault key (Base64 string) using password
+export async function encryptVaultKeyForBackup(vaultKeyB64, password) {
+  const enc = new TextEncoder();
+  const salt = window.crypto.getRandomValues(new Uint8Array(16));
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKeyFromPassword(password, salt);
+  const ciphertext = await subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    enc.encode(vaultKeyB64)
+  );
+
+  // combine salt + iv + ciphertext
+  const combined = new Uint8Array(salt.byteLength + iv.byteLength + ciphertext.byteLength);
+  combined.set(salt, 0);
+  combined.set(iv, salt.byteLength);
+  combined.set(new Uint8Array(ciphertext), salt.byteLength + iv.byteLength);
+
+  return bufToBase64(combined.buffer);
+}
+
+// Decrypt vault key backup using password
+export async function decryptVaultKeyFromBackup(encryptedB64, password) {
+  const buf = base64ToBuf(encryptedB64);
+  const salt = new Uint8Array(buf.slice(0, 16));
+  const iv = new Uint8Array(buf.slice(16, 28));
+  const ciphertext = buf.slice(28);
+  const key = await deriveKeyFromPassword(password, salt);
+  const decrypted = await subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+  const dec = new TextDecoder();
+  return dec.decode(decrypted); // returns vaultKeyB64 string
+}
