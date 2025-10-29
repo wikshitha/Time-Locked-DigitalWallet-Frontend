@@ -33,8 +33,8 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/vaults" element={<VaultsPage />} />
         <Route path="/vaults/:id" element={<VaultDetailPage />} />
-        <Route path="/releases" element={<ReleaseDashboard />} /> 
-        <Route path="/releases/review" element={<ReleaseReviewPage />} />
+        <Route path="/releases/dashboard" element={<ReleaseDashboard />} /> 
+        <Route path="/releases" element={<ReleaseReviewPage />} />
         <Route path="/logs" element={<AuditLogPage />} />
 
         {/* ✅ Protected route for logged-in users */}

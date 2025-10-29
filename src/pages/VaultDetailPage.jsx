@@ -235,6 +235,76 @@ export default function VaultDetailPage() {
           )}
         </div>
 
+        {/* === Add Participants Section (only for owner) === */}
+{user?.role === "owner" && (
+  <div className="border-t pt-4 mt-6">
+    <h2 className="text-xl font-semibold mb-3 text-gray-700">Add Participants</h2>
+
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const email = e.target.email.value;
+        const role = e.target.role.value;
+        try {
+          const res = await API.post(
+            "/api/vaults/participant",
+            { vaultId: id, email, role },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          setVault(res.data.vault);
+          setMessage(`✅ ${email} added as ${role}`);
+          e.target.reset();
+        } catch (err) {
+          console.error("Add participant failed:", err);
+          setMessage("❌ " + (err.response?.data?.message || "Failed to add participant"));
+        }
+      }}
+      className="space-y-3"
+    >
+      <input
+        type="email"
+        name="email"
+        placeholder="Participant Email"
+        required
+        className="w-full border rounded px-3 py-2"
+      />
+
+      <select
+        name="role"
+        required
+        className="w-full border rounded px-3 py-2"
+      >
+        <option value="">Select Role</option>
+        <option value="beneficiary">Beneficiary</option>
+        <option value="executor">Executor</option>
+        <option value="witness">Witness</option>
+      </select>
+
+      <button
+        type="submit"
+        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+      >
+        Add Participant
+      </button>
+    </form>
+
+    {vault?.participants?.length > 0 && (
+      <div className="mt-4">
+        <h3 className="font-semibold text-gray-700 mb-2">Current Participants:</h3>
+        <ul className="space-y-1 text-sm text-gray-600">
+          {vault.participants.map((p) => (
+            <li key={p._id}>
+              • {p.participantId?.firstName} {p.participantId?.lastName} ({p.participantId?.email}) —{" "}
+              <span className="italic">{p.role}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+  </div>
+)}
+
+
         {/* File List */}
         <div className="border-t pt-4">
           <h2 className="text-xl font-semibold mb-3 text-gray-700">
