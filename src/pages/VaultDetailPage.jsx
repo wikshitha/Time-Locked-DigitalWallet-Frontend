@@ -1,3 +1,4 @@
+// frontend/src/pages/VaultDetailPage.jsx
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import API from "../utils/api.js";
@@ -6,10 +7,8 @@ import {
   encryptFileForVault,
   decryptFileForVault,
   importVaultKey,
-  ensureVaultKey,
   encryptVaultKeyForBackup,
   decryptVaultKeyFromBackup,
-  bufToBase64,
 } from "../utils/cryptoUtils.js";
 
 export default function VaultDetailPage() {
@@ -24,31 +23,32 @@ export default function VaultDetailPage() {
   const [restoringKey, setRestoringKey] = useState(false);
 
   //
-  // 🧩 Step 1: Fetch vault details
+  // 🔹 Fetch vault details
   //
+  const fetchVault = async () => {
+    try {
+      const res = await API.get(`/api/vaults/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setVault(res.data.vault);
+      setItems(res.data.items || []);
+    } catch (err) {
+      console.error("Error fetching vault:", err);
+      setMessage("❌ Failed to load vault details");
+    }
+  };
+
   useEffect(() => {
-    const fetchVault = async () => {
-      try {
-        const res = await API.get(`/api/vaults/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setVault(res.data.vault);
-        setItems(res.data.items || []);
-      } catch (err) {
-        console.error("Error fetching vault:", err);
-        setMessage("❌ Failed to load vault details");
-      }
-    };
     if (token) fetchVault();
   }, [id, token]);
 
   //
-  // 🧩 Step 2: Attempt automatic vault key restore if missing
+  // 🔹 Try to restore vault key if missing
   //
   useEffect(() => {
     const tryRestoreVaultKey = async () => {
       const existingKey = await importVaultKey(id);
-      if (existingKey) return; // already have the key locally
+      if (existingKey) return;
 
       try {
         setRestoringKey(true);
@@ -63,7 +63,7 @@ export default function VaultDetailPage() {
 
         const decryptedVaultKeyB64 = await decryptVaultKeyFromBackup(
           encryptedVaultKey,
-          user.email // or ask password
+          user.email // Replace with password prompt later for more security
         );
 
         localStorage.setItem(`vaultKey_${id}`, decryptedVaultKeyB64);
@@ -80,7 +80,7 @@ export default function VaultDetailPage() {
   }, [id, token, user?.email]);
 
   //
-  // 🧩 Step 3: Upload & Encrypt a file
+  // 🔹 Handle encrypted upload
   //
   const handleUpload = async (e) => {
     e.preventDefault();
@@ -88,31 +88,31 @@ export default function VaultDetailPage() {
 
     try {
       setUploading(true);
-      setMessage("");
+      setMessage("Encrypting and uploading...");
 
-      // 🔐 Encrypt the file client-side
+      // Encrypt the file
       const { encryptedData, encKey } = await encryptFileForVault(file, id);
 
-      // Prepare metadata
+      // Metadata
       const metadata = {
         name: file.name,
         type: file.type,
         size: file.size,
       };
 
-      // Send to backend
-      const res = await API.post(
+      // Upload encrypted blob
+      await API.post(
         "/api/upload",
         { vaultId: id, encryptedData, encKey, metadata },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // ✅ Auto-backup vault key after first encryption
+      // Backup vault key to server
       const vaultKeyB64 = localStorage.getItem(`vaultKey_${id}`);
       if (vaultKeyB64) {
         const encryptedVaultKey = await encryptVaultKeyForBackup(
           vaultKeyB64,
-          user.email // could be replaced by user password for better security
+          user.email
         );
         await API.post(
           "/api/keybackup/upload",
@@ -121,10 +121,9 @@ export default function VaultDetailPage() {
         );
       }
 
-      // Update UI
-      setItems((prev) => [...prev, res.data.item]);
-      setMessage("✅ File encrypted, uploaded, and vault key backed up!");
+      setMessage("✅ File encrypted, uploaded & key backed up!");
       setFile(null);
+      fetchVault(); // Refresh the file list
     } catch (err) {
       console.error("Upload failed:", err);
       setMessage("❌ Upload failed: " + (err.response?.data?.message || err.message));
@@ -134,17 +133,17 @@ export default function VaultDetailPage() {
   };
 
   //
-  // 🧩 Step 4: Decrypt & Download file
+  // 🔹 Handle decrypt + download
   //
   const handleDecryptDownload = async (item) => {
     try {
       setMessage(`🔄 Downloading & decrypting ${item.metadata?.name}...`);
 
-      // 1️⃣ Fetch encrypted data
+      // Fetch encrypted data
       const res = await fetch(item.fileUrl);
       const encryptedArrayBuffer = await res.arrayBuffer();
 
-      // 2️⃣ Convert to Base64
+      // Convert to Base64 (chunked to avoid memory issues)
       const array = new Uint8Array(encryptedArrayBuffer);
       let binary = "";
       const chunkSize = 0x8000;
@@ -153,14 +152,14 @@ export default function VaultDetailPage() {
       }
       const encryptedDataB64 = btoa(binary);
 
-      // 3️⃣ Decrypt
+      // Decrypt
       const decryptedArrayBuffer = await decryptFileForVault(
         encryptedDataB64,
         item.encKey,
         id
       );
 
-      // 4️⃣ Download decrypted blob
+      // Trigger download
       const blob = new Blob([decryptedArrayBuffer], {
         type: item.metadata?.type || "application/octet-stream",
       });
@@ -179,7 +178,7 @@ export default function VaultDetailPage() {
   };
 
   //
-  // 🧩 Render UI
+  // 🔹 Render
   //
   if (!vault)
     return (
@@ -192,125 +191,117 @@ export default function VaultDetailPage() {
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-3xl mx-auto bg-white shadow-lg rounded-2xl p-6">
         <h1 className="text-3xl font-bold mb-2 text-gray-800">
-          Vault: {vault.name}
+          Vault: {vault.title}
         </h1>
         <p className="text-gray-500 mb-6">
-          Owner: {user?.firstName || "Unknown"} | Created:{" "}
+          Owner: {vault.ownerId?.firstName || user?.firstName || "Unknown"} | Created:{" "}
           {new Date(vault.createdAt).toLocaleString()}
         </p>
 
         {/* Upload Section */}
-        <div className="mb-8 border-t pt-4">
-          <h2 className="text-xl font-semibold mb-3 text-gray-700">
-            Upload Encrypted File
-          </h2>
-          <form onSubmit={handleUpload} className="flex items-center space-x-3">
-            <input
-              type="file"
-              onChange={(e) => setFile(e.target.files[0])}
-              className="flex-1 border rounded px-3 py-2"
-            />
-            <button
-              type="submit"
-              disabled={uploading}
-              className={`px-4 py-2 rounded text-white ${
-                uploading
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700"
-              }`}
+        {user?.role === "owner" && (
+          <div className="mb-8 border-t pt-4">
+            <h2 className="text-xl font-semibold mb-3 text-gray-700">
+              Upload Encrypted File
+            </h2>
+            <form onSubmit={handleUpload} className="flex items-center space-x-3">
+              <input
+                type="file"
+                onChange={(e) => setFile(e.target.files[0])}
+                className="flex-1 border rounded px-3 py-2"
+              />
+              <button
+                type="submit"
+                disabled={uploading}
+                className={`px-4 py-2 rounded text-white ${
+                  uploading
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }`}
+              >
+                {uploading ? "Encrypting..." : "Upload"}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Participants Section */}
+        {user?.role === "owner" && (
+          <div className="border-t pt-4 mt-6">
+            <h2 className="text-xl font-semibold mb-3 text-gray-700">
+              Add Participants
+            </h2>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const email = e.target.email.value;
+                const role = e.target.role.value;
+                try {
+                  const res = await API.post(
+                    "/api/vaults/participant",
+                    { vaultId: id, email, role },
+                    { headers: { Authorization: `Bearer ${token}` } }
+                  );
+                  setVault(res.data.vault);
+                  setMessage(`✅ ${email} added as ${role}`);
+                  e.target.reset();
+                } catch (err) {
+                  console.error("Add participant failed:", err);
+                  setMessage(
+                    "❌ " +
+                      (err.response?.data?.message || "Failed to add participant")
+                  );
+                }
+              }}
+              className="space-y-3"
             >
-              {uploading ? "Encrypting..." : "Upload"}
-            </button>
-          </form>
-          {message && (
-            <p
-              className={`mt-3 text-sm ${
-                message.startsWith("✅") || message.startsWith("🔐")
-                  ? "text-green-600"
-                  : "text-red-500"
-              }`}
-            >
-              {message}
-            </p>
-          )}
-        </div>
+              <input
+                type="email"
+                name="email"
+                placeholder="Participant Email"
+                required
+                className="w-full border rounded px-3 py-2"
+              />
+              <select
+                name="role"
+                required
+                className="w-full border rounded px-3 py-2"
+              >
+                <option value="">Select Role</option>
+                <option value="beneficiary">Beneficiary</option>
+                <option value="executor">Executor</option>
+                <option value="witness">Witness</option>
+              </select>
+              <button
+                type="submit"
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                Add Participant
+              </button>
+            </form>
 
-        {/* === Add Participants Section (only for owner) === */}
-{user?.role === "owner" && (
-  <div className="border-t pt-4 mt-6">
-    <h2 className="text-xl font-semibold mb-3 text-gray-700">Add Participants</h2>
-
-    <form
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const email = e.target.email.value;
-        const role = e.target.role.value;
-        try {
-          const res = await API.post(
-            "/api/vaults/participant",
-            { vaultId: id, email, role },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-          setVault(res.data.vault);
-          setMessage(`✅ ${email} added as ${role}`);
-          e.target.reset();
-        } catch (err) {
-          console.error("Add participant failed:", err);
-          setMessage("❌ " + (err.response?.data?.message || "Failed to add participant"));
-        }
-      }}
-      className="space-y-3"
-    >
-      <input
-        type="email"
-        name="email"
-        placeholder="Participant Email"
-        required
-        className="w-full border rounded px-3 py-2"
-      />
-
-      <select
-        name="role"
-        required
-        className="w-full border rounded px-3 py-2"
-      >
-        <option value="">Select Role</option>
-        <option value="beneficiary">Beneficiary</option>
-        <option value="executor">Executor</option>
-        <option value="witness">Witness</option>
-      </select>
-
-      <button
-        type="submit"
-        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-      >
-        Add Participant
-      </button>
-    </form>
-
-    {vault?.participants?.length > 0 && (
-      <div className="mt-4">
-        <h3 className="font-semibold text-gray-700 mb-2">Current Participants:</h3>
-        <ul className="space-y-1 text-sm text-gray-600">
-          {vault.participants.map((p) => (
-            <li key={p._id}>
-              • {p.participantId?.firstName} {p.participantId?.lastName} ({p.participantId?.email}) —{" "}
-              <span className="italic">{p.role}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    )}
-  </div>
-)}
-
+            {vault?.participants?.length > 0 && (
+              <div className="mt-4">
+                <h3 className="font-semibold text-gray-700 mb-2">
+                  Current Participants:
+                </h3>
+                <ul className="space-y-1 text-sm text-gray-600">
+                  {vault.participants.map((p) => (
+                    <li key={p._id}>
+                      • {p.participantId?.firstName} {p.participantId?.lastName} (
+                      {p.participantId?.email}) —{" "}
+                      <span className="italic">{p.role}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* File List */}
-        <div className="border-t pt-4">
-          <h2 className="text-xl font-semibold mb-3 text-gray-700">
-            Stored Items
-          </h2>
-
+        <div className="border-t pt-4 mt-6">
+          <h2 className="text-xl font-semibold mb-3 text-gray-700">Stored Items</h2>
           {items.length === 0 ? (
             <p className="text-gray-500">No files uploaded yet.</p>
           ) : (
@@ -329,22 +320,32 @@ export default function VaultDetailPage() {
                       {(item.metadata?.size / 1024).toFixed(1)} KB
                     </p>
                   </div>
-
-                  <div className="flex space-x-3">
-                    {item.fileUrl && (
-                      <button
-                        onClick={() => handleDecryptDownload(item)}
-                        className="text-blue-600 hover:underline"
-                      >
-                        Decrypt & Download
-                      </button>
-                    )}
-                  </div>
+                  {item.fileUrl && (
+                    <button
+                      onClick={() => handleDecryptDownload(item)}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Decrypt & Download
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
           )}
         </div>
+
+        {/* Message */}
+        {message && (
+          <p
+            className={`mt-4 text-sm text-center ${
+              message.startsWith("✅") || message.startsWith("🔐")
+                ? "text-green-600"
+                : "text-red-500"
+            }`}
+          >
+            {message}
+          </p>
+        )}
 
         <div className="mt-6 text-center">
           <Link
