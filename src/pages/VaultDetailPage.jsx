@@ -22,9 +22,7 @@ export default function VaultDetailPage() {
   const [uploading, setUploading] = useState(false);
   const [restoringKey, setRestoringKey] = useState(false);
 
-  //
-  // 🔹 Fetch vault details
-  //
+  // ---------------- Fetch Vault ----------------
   const fetchVault = async () => {
     try {
       const res = await API.get(`/api/vaults/${id}`, {
@@ -42,9 +40,7 @@ export default function VaultDetailPage() {
     if (token) fetchVault();
   }, [id, token]);
 
-  //
-  // 🔹 Try to restore vault key if missing
-  //
+  // ---------------- Try restore vault key ----------------
   useEffect(() => {
     const tryRestoreVaultKey = async () => {
       const existingKey = await importVaultKey(id);
@@ -63,7 +59,7 @@ export default function VaultDetailPage() {
 
         const decryptedVaultKeyB64 = await decryptVaultKeyFromBackup(
           encryptedVaultKey,
-          user.email // Replace with password prompt later for more security
+          user.email
         );
 
         localStorage.setItem(`vaultKey_${id}`, decryptedVaultKeyB64);
@@ -79,9 +75,7 @@ export default function VaultDetailPage() {
     if (id && token) tryRestoreVaultKey();
   }, [id, token, user?.email]);
 
-  //
-  // 🔹 Handle encrypted upload
-  //
+  // ---------------- Upload Encrypted File ----------------
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!file) return alert("Please select a file");
@@ -90,24 +84,16 @@ export default function VaultDetailPage() {
       setUploading(true);
       setMessage("Encrypting and uploading...");
 
-      // Encrypt the file
       const { encryptedData, encKey } = await encryptFileForVault(file, id);
+      const metadata = { name: file.name, type: file.type, size: file.size };
 
-      // Metadata
-      const metadata = {
-        name: file.name,
-        type: file.type,
-        size: file.size,
-      };
-
-      // Upload encrypted blob
       await API.post(
         "/api/upload",
         { vaultId: id, encryptedData, encKey, metadata },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Backup vault key to server
+      // 🔐 Backup vault key to server
       const vaultKeyB64 = localStorage.getItem(`vaultKey_${id}`);
       if (vaultKeyB64) {
         const encryptedVaultKey = await encryptVaultKeyForBackup(
@@ -123,7 +109,7 @@ export default function VaultDetailPage() {
 
       setMessage("✅ File encrypted, uploaded & key backed up!");
       setFile(null);
-      fetchVault(); // Refresh the file list
+      fetchVault();
     } catch (err) {
       console.error("Upload failed:", err);
       setMessage("❌ Upload failed: " + (err.response?.data?.message || err.message));
@@ -132,18 +118,14 @@ export default function VaultDetailPage() {
     }
   };
 
-  //
-  // 🔹 Handle decrypt + download
-  //
+  // ---------------- Decrypt & Download ----------------
   const handleDecryptDownload = async (item) => {
     try {
       setMessage(`🔄 Downloading & decrypting ${item.metadata?.name}...`);
 
-      // Fetch encrypted data
       const res = await fetch(item.fileUrl);
       const encryptedArrayBuffer = await res.arrayBuffer();
 
-      // Convert to Base64 (chunked to avoid memory issues)
       const array = new Uint8Array(encryptedArrayBuffer);
       let binary = "";
       const chunkSize = 0x8000;
@@ -152,14 +134,12 @@ export default function VaultDetailPage() {
       }
       const encryptedDataB64 = btoa(binary);
 
-      // Decrypt
       const decryptedArrayBuffer = await decryptFileForVault(
         encryptedDataB64,
         item.encKey,
         id
       );
 
-      // Trigger download
       const blob = new Blob([decryptedArrayBuffer], {
         type: item.metadata?.type || "application/octet-stream",
       });
@@ -177,9 +157,23 @@ export default function VaultDetailPage() {
     }
   };
 
-  //
-  // 🔹 Render
-  //
+  // ---------------- Remove Participant ----------------
+  const handleRemoveParticipant = async (participantId) => {
+    if (!window.confirm("Are you sure you want to remove this participant?")) return;
+
+    try {
+      const res = await API.delete(`/api/vaults/${id}/participant/${participantId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setVault(res.data.vault);
+      setMessage("✅ Participant removed successfully!");
+    } catch (err) {
+      console.error("Remove participant failed:", err);
+      setMessage("❌ " + (err.response?.data?.message || "Failed to remove participant"));
+    }
+  };
+
+  // ---------------- UI Render ----------------
   if (!vault)
     return (
       <div className="flex h-screen items-center justify-center text-gray-600">
@@ -190,15 +184,13 @@ export default function VaultDetailPage() {
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-3xl mx-auto bg-white shadow-lg rounded-2xl p-6">
-        <h1 className="text-3xl font-bold mb-2 text-gray-800">
-          Vault: {vault.title}
-        </h1>
+        <h1 className="text-3xl font-bold mb-2 text-gray-800">Vault: {vault.title}</h1>
         <p className="text-gray-500 mb-6">
           Owner: {vault.ownerId?.firstName || user?.firstName || "Unknown"} | Created:{" "}
           {new Date(vault.createdAt).toLocaleString()}
         </p>
 
-        {/* Upload Section */}
+        {/* Upload Section (Owner Only) */}
         {user?.role === "owner" && (
           <div className="mb-8 border-t pt-4">
             <h2 className="text-xl font-semibold mb-3 text-gray-700">
@@ -225,12 +217,12 @@ export default function VaultDetailPage() {
           </div>
         )}
 
-        {/* Participants Section */}
+        {/* Participants Section (Owner Only) */}
         {user?.role === "owner" && (
           <div className="border-t pt-4 mt-6">
-            <h2 className="text-xl font-semibold mb-3 text-gray-700">
-              Add Participants
-            </h2>
+            <h2 className="text-xl font-semibold mb-3 text-gray-700">Manage Participants</h2>
+
+            {/* Add Participant */}
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -262,11 +254,7 @@ export default function VaultDetailPage() {
                 required
                 className="w-full border rounded px-3 py-2"
               />
-              <select
-                name="role"
-                required
-                className="w-full border rounded px-3 py-2"
-              >
+              <select name="role" required className="w-full border rounded px-3 py-2">
                 <option value="">Select Role</option>
                 <option value="beneficiary">Beneficiary</option>
                 <option value="executor">Executor</option>
@@ -280,17 +268,27 @@ export default function VaultDetailPage() {
               </button>
             </form>
 
+            {/* List Participants */}
             {vault?.participants?.length > 0 && (
               <div className="mt-4">
-                <h3 className="font-semibold text-gray-700 mb-2">
-                  Current Participants:
-                </h3>
-                <ul className="space-y-1 text-sm text-gray-600">
+                <h3 className="font-semibold text-gray-700 mb-2">Current Participants:</h3>
+                <ul className="space-y-2 text-sm text-gray-600">
                   {vault.participants.map((p) => (
-                    <li key={p._id}>
-                      • {p.participantId?.firstName} {p.participantId?.lastName} (
-                      {p.participantId?.email}) —{" "}
-                      <span className="italic">{p.role}</span>
+                    <li
+                      key={p._id}
+                      className="flex justify-between items-center border rounded px-3 py-2"
+                    >
+                      <span>
+                        • {p.participantId?.firstName} {p.participantId?.lastName} (
+                        {p.participantId?.email}) —{" "}
+                        <span className="italic">{p.role}</span>
+                      </span>
+                      <button
+                        onClick={() => handleRemoveParticipant(p.participantId?._id)}
+                        className="text-red-600 hover:underline text-xs"
+                      >
+                        Remove
+                      </button>
                     </li>
                   ))}
                 </ul>
