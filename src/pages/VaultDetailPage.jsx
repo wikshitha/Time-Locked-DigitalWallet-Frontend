@@ -21,6 +21,10 @@ export default function VaultDetailPage() {
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [restoringKey, setRestoringKey] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [canAccessFiles, setCanAccessFiles] = useState(false);
+  const [userRole, setUserRole] = useState("");
+  const [releaseStatus, setReleaseStatus] = useState(null);
 
   // ---------------- Fetch Vault ----------------
   const fetchVault = async () => {
@@ -30,9 +34,31 @@ export default function VaultDetailPage() {
       });
       setVault(res.data.vault);
       setItems(res.data.items || []);
+      setCanAccessFiles(res.data.canAccessFiles || false);
+      setUserRole(res.data.userRole || "");
+      
+      // Check if current user is the vault owner
+      setIsOwner(res.data.isOwner || false);
+
+      // Fetch release status for participants
+      if (!res.data.isOwner) {
+        fetchReleaseStatus();
+      }
     } catch (err) {
       console.error("Error fetching vault:", err);
       setMessage("❌ Failed to load vault details");
+    }
+  };
+
+  // ---------------- Fetch Release Status ----------------
+  const fetchReleaseStatus = async () => {
+    try {
+      const res = await API.get(`/api/releases/vault/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setReleaseStatus(res.data);
+    } catch (err) {
+      console.error("Error fetching release status:", err);
     }
   };
 
@@ -186,12 +212,117 @@ export default function VaultDetailPage() {
       <div className="max-w-3xl mx-auto bg-white shadow-lg rounded-2xl p-6">
         <h1 className="text-3xl font-bold mb-2 text-gray-800">Vault: {vault.title}</h1>
         <p className="text-gray-500 mb-6">
-          Owner: {vault.ownerId?.firstName || user?.firstName || "Unknown"} | Created:{" "}
-          {new Date(vault.createdAt).toLocaleString()}
+          Owner: {vault.ownerId?.firstName || "Unknown"} {vault.ownerId?.lastName || ""} | 
+          Created: {new Date(vault.createdAt).toLocaleString()}
+          {!isOwner && (
+            <span className="ml-2 text-blue-600 font-medium">
+              (You are a {userRole})
+            </span>
+          )}
         </p>
 
-        {/* Upload Section (Owner Only) */}
-        {user?.role === "owner" && (
+        {/* Release Status for Participants */}
+        {!isOwner && releaseStatus && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="font-semibold text-blue-800 mb-2">📋 Release Status</h3>
+            {!releaseStatus.hasActiveRelease && (
+              <p className="text-sm text-gray-600">No active release for this vault.</p>
+            )}
+            {releaseStatus.hasActiveRelease && (
+              <div className="text-sm space-y-1">
+                <p>
+                  <span className="font-medium">Status:</span>{" "}
+                  <span className="capitalize">{releaseStatus.status}</span>
+                </p>
+                {releaseStatus.inGracePeriod && (
+                  <p className="text-amber-600">
+                    ⏳ Grace period active until{" "}
+                    {new Date(releaseStatus.gracePeriodEnd).toLocaleDateString()}
+                  </p>
+                )}
+                {releaseStatus.status === "in_progress" && (
+                  <p>
+                    Approvals: {releaseStatus.approvalsReceived}/{releaseStatus.approvalsNeeded}
+                  </p>
+                )}
+                {releaseStatus.inTimeLock && (
+                  <p className="text-amber-600">
+                    🔒 Time lock active until{" "}
+                    {new Date(releaseStatus.countdownEnd).toLocaleDateString()}
+                  </p>
+                )}
+                {releaseStatus.isReleased && (
+                  <p className="text-green-600 font-medium">
+                    ✅ Vault has been released! You can now access the files.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Witness Approval Section */}
+        {!isOwner && userRole === "witness" && releaseStatus?.hasActiveRelease && 
+         !releaseStatus.inGracePeriod && !releaseStatus.isReleased && 
+         releaseStatus.status !== "rejected" && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <h3 className="font-semibold text-yellow-800 mb-3">⚖️ Witness Approval Required</h3>
+            <p className="text-sm text-gray-600 mb-3">
+              The grace period has ended. As a witness, you need to approve or reject this release.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    await API.post(
+                      "/api/releases/confirm",
+                      { 
+                        releaseId: releaseStatus.releaseId, 
+                        status: "approved",
+                        comment: "Approved by witness"
+                      },
+                      { headers: { Authorization: `Bearer ${token}` } }
+                    );
+                    setMessage("✅ Release approved successfully!");
+                    fetchReleaseStatus();
+                  } catch (err) {
+                    setMessage("❌ " + (err.response?.data?.message || "Failed to approve"));
+                  }
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                Approve Release
+              </button>
+              <button
+                onClick={async () => {
+                  const comment = prompt("Please provide a reason for rejection:");
+                  if (!comment) return;
+                  try {
+                    await API.post(
+                      "/api/releases/confirm",
+                      { 
+                        releaseId: releaseStatus.releaseId, 
+                        status: "rejected",
+                        comment
+                      },
+                      { headers: { Authorization: `Bearer ${token}` } }
+                    );
+                    setMessage("✅ Release rejected successfully!");
+                    fetchReleaseStatus();
+                  } catch (err) {
+                    setMessage("❌ " + (err.response?.data?.message || "Failed to reject"));
+                  }
+                }}
+                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+              >
+                Reject Release
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Upload Section - Only for Vault Owners */}
+        {isOwner && (
           <div className="mb-8 border-t pt-4">
             <h2 className="text-xl font-semibold mb-3 text-gray-700">
               Upload Encrypted File
@@ -217,8 +348,8 @@ export default function VaultDetailPage() {
           </div>
         )}
 
-        {/* Participants Section (Owner Only) */}
-        {user?.role === "owner" && (
+        {/* Participants Section - Only for Vault Owners */}
+        {isOwner && (
           <div className="border-t pt-4 mt-6">
             <h2 className="text-xl font-semibold mb-3 text-gray-700">Manage Participants</h2>
 
@@ -257,7 +388,7 @@ export default function VaultDetailPage() {
               <select name="role" required className="w-full border rounded px-3 py-2">
                 <option value="">Select Role</option>
                 <option value="beneficiary">Beneficiary</option>
-                <option value="executor">Executor</option>
+                <option value="shared">Shared</option>
                 <option value="witness">Witness</option>
               </select>
               <button
@@ -281,7 +412,7 @@ export default function VaultDetailPage() {
                       <span>
                         • {p.participantId?.firstName} {p.participantId?.lastName} (
                         {p.participantId?.email}) —{" "}
-                        <span className="italic">{p.role}</span>
+                        <span className="italic capitalize">{p.role}</span>
                       </span>
                       <button
                         onClick={() => handleRemoveParticipant(p.participantId?._id)}
@@ -297,12 +428,49 @@ export default function VaultDetailPage() {
           </div>
         )}
 
-        {/* File List */}
+        {/* Participants View for Non-Owners */}
+        {!isOwner && vault?.participants?.length > 0 && (
+          <div className="border-t pt-4 mt-6">
+            <h2 className="text-xl font-semibold mb-3 text-gray-700">Participants</h2>
+            <ul className="space-y-2 text-sm text-gray-600">
+              {vault.participants.map((p) => (
+                <li
+                  key={p._id}
+                  className="flex justify-between items-center border rounded px-3 py-2"
+                >
+                  <span>
+                    • {p.participantId?.firstName} {p.participantId?.lastName} (
+                    {p.participantId?.email}) —{" "}
+                    <span className="italic capitalize">{p.role}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* File List - Conditional Access Based on Role and Release Status */}
         <div className="border-t pt-4 mt-6">
           <h2 className="text-xl font-semibold mb-3 text-gray-700">Stored Items</h2>
-          {items.length === 0 ? (
+          
+          {!canAccessFiles && !isOwner && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-amber-800 font-medium">🔒 Files are locked</p>
+              <p className="text-sm text-gray-600 mt-1">
+                {userRole === "beneficiary" 
+                  ? "As a beneficiary, you can only access files after the vault is fully released (grace period + approvals + time lock complete)."
+                  : userRole === "witness"
+                  ? "As a witness, you can only access files after the vault is fully released. Your role is to approve or reject the release."
+                  : "You can only access files after the vault is fully released."}
+              </p>
+            </div>
+          )}
+
+          {canAccessFiles && items.length === 0 && (
             <p className="text-gray-500">No files uploaded yet.</p>
-          ) : (
+          )}
+          
+          {canAccessFiles && items.length > 0 && (
             <ul className="space-y-3">
               {items.map((item) => (
                 <li
