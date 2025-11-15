@@ -9,6 +9,7 @@ import {
   importVaultKey,
   encryptVaultKeyForBackup,
   decryptVaultKeyFromBackup,
+  restoreVaultKeyFromSealed,
 } from "../utils/cryptoUtils.js";
 
 export default function VaultDetailPage() {
@@ -76,6 +77,31 @@ export default function VaultDetailPage() {
         setRestoringKey(true);
         setMessage("🔐 No local vault key found — attempting restore...");
 
+        // First, try to get sealed key for participants (beneficiaries/witnesses)
+        if (!isOwner) {
+          try {
+            const sealedRes = await API.get(`/api/vaults/${id}/sealed-key`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (sealedRes.data.encKey) {
+              // Get user's private key from localStorage
+              const privateKeyPem = localStorage.getItem(`privateKey_${user.email}`);
+              if (!privateKeyPem) {
+                throw new Error("Your private key is not available. Please login again.");
+              }
+
+              // Unwrap the vault key using private key
+              await restoreVaultKeyFromSealed(id, sealedRes.data.encKey, privateKeyPem);
+              setMessage("✅ Vault key restored from sealed key!");
+              return;
+            }
+          } catch (sealedErr) {
+            console.warn("Sealed key restore failed, trying password backup:", sealedErr);
+          }
+        }
+
+        // Fallback: try password-based backup (for owners)
         const res = await API.get(`/api/keybackup/${id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -89,17 +115,17 @@ export default function VaultDetailPage() {
         );
 
         localStorage.setItem(`vaultKey_${id}`, decryptedVaultKeyB64);
-        setMessage("✅ Vault key restored successfully!");
+        setMessage("✅ Vault key restored from password backup!");
       } catch (err) {
         console.warn("Vault key restore failed:", err);
-        setMessage("⚠️ Vault key restore failed. You may need to reupload it.");
+        setMessage("⚠️ Vault key restore failed. " + (err.message || "You may not have access yet."));
       } finally {
         setRestoringKey(false);
       }
     };
 
-    if (id && token) tryRestoreVaultKey();
-  }, [id, token, user?.email]);
+    if (id && token && user) tryRestoreVaultKey();
+  }, [id, token, user, isOwner]);
 
   // ---------------- Upload Encrypted File ----------------
   const handleUpload = async (e) => {

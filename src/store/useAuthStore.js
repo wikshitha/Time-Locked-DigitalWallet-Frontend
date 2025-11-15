@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import API from "../utils/api";
+import { decryptPrivateKey } from "../utils/cryptoUtils";
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -27,6 +28,18 @@ export const useAuthStore = create((set) => ({
     try {
       const res = await API.post("/api/auth/login", formData);
       localStorage.setItem("token", res.data.token);
+      
+      // Decrypt and store private key if available
+      if (res.data.user.privateKeyEnc && formData.password) {
+        try {
+          const privateKeyPem = await decryptPrivateKey(res.data.user.privateKeyEnc, formData.password);
+          localStorage.setItem(`privateKey_${res.data.user.email}`, privateKeyPem);
+          console.log("✅ Private key decrypted and stored locally");
+        } catch (err) {
+          console.warn("Failed to decrypt private key:", err);
+        }
+      }
+      
       set({ user: res.data.user, token: res.data.token, loading: false });
       return res.data;
     } catch (err) {
@@ -48,7 +61,9 @@ export const useAuthStore = create((set) => ({
 
   // 🔹 Logout user
   logout: () => {
+    // Clear token and all stored keys
     localStorage.removeItem("token");
+    // Note: We keep private keys for security - user can clear browser data manually
     set({ user: null, token: null });
   },
 }));

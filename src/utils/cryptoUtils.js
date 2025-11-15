@@ -175,3 +175,87 @@ export async function decryptVaultKeyFromBackup(encryptedB64, password) {
   const dec = new TextDecoder();
   return dec.decode(decrypted); // returns vaultKeyB64 string
 }
+
+//
+// 🔑 RSA-based vault key unsealing for participants
+// When participants (beneficiaries/witnesses) need to decrypt files,
+// they retrieve their sealed vault key from the server and unwrap it using their private key
+//
+
+export async function restoreVaultKeyFromSealed(vaultId, sealedEncKeyB64, userPrivateKeyPem) {
+  try {
+    // Import user's private RSA key
+    const pemHeader = "-----BEGIN PRIVATE KEY-----";
+    const pemFooter = "-----END PRIVATE KEY-----";
+    const pemContents = userPrivateKeyPem
+      .replace(pemHeader, "")
+      .replace(pemFooter, "")
+      .replace(/\s/g, "");
+    const binaryDer = base64ToBuf(pemContents);
+    
+    const privateKey = await subtle.importKey(
+      "pkcs8",
+      binaryDer,
+      { name: "RSA-OAEP", hash: "SHA-256" },
+      true,
+      ["decrypt"]
+    );
+
+    // Decrypt the sealed vault key
+    const sealedKeyBuf = base64ToBuf(sealedEncKeyB64);
+    const vaultKeyRaw = await subtle.decrypt(
+      { name: "RSA-OAEP" },
+      privateKey,
+      sealedKeyBuf
+    );
+
+    // Convert to base64 and store
+    const vaultKeyB64 = bufToBase64(vaultKeyRaw);
+    localStorage.setItem(`vaultKey_${vaultId}`, vaultKeyB64);
+    
+    console.log(`✅ Vault key restored from sealed key for vault ${vaultId}`);
+    return vaultKeyB64;
+  } catch (err) {
+    console.error("Failed to restore vault key from sealed key:", err);
+    throw new Error("Failed to unwrap sealed vault key");
+  }
+}
+
+//
+// 🔑 Decrypt user's private key using password
+// The privateKeyEnc is encrypted with a key derived from the user's password
+//
+
+export async function decryptPrivateKey(privateKeyEnc, password) {
+  try {
+    const buf = base64ToBuf(privateKeyEnc);
+    const salt = new Uint8Array(buf.slice(0, 16));
+    const iv = new Uint8Array(buf.slice(16, 28));
+    const ciphertext = buf.slice(28);
+    
+    // Derive key from password
+    const enc = new TextEncoder();
+    const baseKey = await subtle.importKey(
+      "raw",
+      enc.encode(password),
+      "PBKDF2",
+      false,
+      ["deriveKey"]
+    );
+    
+    const key = await subtle.deriveKey(
+      { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+      baseKey,
+      { name: "AES-GCM", length: 256 },
+      true,
+      ["decrypt"]
+    );
+    
+    const decrypted = await subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+    const dec = new TextDecoder();
+    return dec.decode(decrypted); // returns private key PEM string
+  } catch (err) {
+    console.error("Failed to decrypt private key:", err);
+    throw new Error("Failed to decrypt private key. Wrong password?");
+  }
+}
