@@ -1,7 +1,16 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import API from "../utils/api.js";
 import { useAuthStore } from "../store/useAuthStore.js";
+import {
+  PlusIcon,
+  ChevronLeftIcon,
+  EyeIcon,
+  TrashIcon,
+  LockClosedIcon,
+  UserGroupIcon,
+  InformationCircleIcon,
+} from "@heroicons/react/24/outline";
 
 export default function VaultsPage() {
   const { token, user } = useAuthStore();
@@ -19,6 +28,7 @@ export default function VaultsPage() {
     timeLock: 7,
     approvalsRequired: 1,
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ---------------- Fetch Vaults ----------------
   useEffect(() => {
@@ -31,7 +41,7 @@ export default function VaultsPage() {
         setParticipatedVaults(res.data.participatedVaults || []);
       } catch (err) {
         console.error("Error fetching vaults:", err);
-        setMessage("❌ Failed to fetch vaults");
+        setMessage({ type: "error", text: "Failed to fetch vaults" });
       } finally {
         setLoading(false);
       }
@@ -42,6 +52,8 @@ export default function VaultsPage() {
   // ---------------- Create Vault ----------------
   const handleCreateVault = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    setMessage("");
     try {
       const res = await API.post(
         "/api/vaults",
@@ -67,191 +79,281 @@ export default function VaultsPage() {
         timeLock: 7,
         approvalsRequired: 1,
       });
-      setMessage("✅ Vault created successfully!");
+      setMessage({ type: "success", text: "Vault created successfully!" });
     } catch (err) {
       console.error("Create vault error:", err);
-      setMessage("❌ Failed to create vault: " + (err.response?.data?.error || err.message));
+      setMessage({
+        type: "error",
+        text: "Failed to create vault: " + (err.response?.data?.error || err.message),
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   // ---------------- Delete Vault ----------------
   const handleDeleteVault = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this vault?")) return;
+    if (!window.confirm("Are you sure you want to delete this vault? This action cannot be undone.")) return;
+    setMessage("");
     try {
       await API.delete(`/api/vaults/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setOwnedVaults((prev) => prev.filter((v) => v._id !== id));
-      setMessage("🗑️ Vault deleted successfully");
+      setMessage({ type: "success", text: "Vault deleted successfully" });
     } catch (err) {
       console.error("Delete vault error:", err);
-      setMessage("❌ Failed to delete vault: " + (err.response?.data?.message || ""));
+      setMessage({
+        type: "error",
+        text: "Failed to delete vault: " + (err.response?.data?.message || ""),
+      });
     }
   };
 
-  // ---------------- Render ----------------
-  if (loading)
-    return <div className="text-center text-gray-500 mt-10">Loading vaults...</div>;
-
-  return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-4">My Vaults Dashboard</h1>
-
-        {message && <p className="mb-3 text-sm text-gray-600">{message}</p>}
-
-        {/* Create Vault Form - All users can create vaults */}
-        <form onSubmit={handleCreateVault} className="mb-6 space-y-3 border-b pb-6">
-          <h2 className="text-xl font-semibold text-gray-700">Create New Vault</h2>
-          <input
-            type="text"
-            placeholder="Vault Title"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            className="w-full border p-2 rounded"
-            required
-          />
-          <textarea
-            placeholder="Description"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-            className="w-full border p-2 rounded"
-          ></textarea>
-
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <input
-              type="number"
-              placeholder="Inactivity (days)"
-              value={form.inactivityPeriod}
-              onChange={(e) =>
-                setForm({ ...form, inactivityPeriod: e.target.value })
-              }
-              className="border p-2 rounded"
-            />
-            <input
-              type="number"
-              placeholder="Grace Period (days)"
-              value={form.gracePeriod}
-              onChange={(e) =>
-                setForm({ ...form, gracePeriod: e.target.value })
-              }
-              className="border p-2 rounded"
-            />
-            <input
-              type="number"
-              placeholder="Time Lock (days)"
-              value={form.timeLock}
-              onChange={(e) =>
-                setForm({ ...form, timeLock: e.target.value })
-              }
-              className="border p-2 rounded"
-            />
-            <input
-              type="number"
-              placeholder="Approvals Needed"
-              value={form.approvalsRequired}
-              onChange={(e) =>
-                setForm({ ...form, approvalsRequired: e.target.value })
-              }
-              className="border p-2 rounded"
-            />
+  const renderVaultCard = (vault, isOwner) => (
+    <div
+      key={vault._id}
+      className="group relative backdrop-blur-lg bg-white/5 border border-white/10 rounded-2xl p-5 transition-all duration-300 hover:bg-white/10 hover:border-cyan-400/50"
+    >
+      <div className="flex flex-col h-full">
+        <div className="flex-grow">
+          <h3 className="font-bold text-lg text-white truncate">{vault.title}</h3>
+          <p className="text-sm text-white/60 mt-1 h-10 overflow-hidden">
+            {vault.description || "No description provided."}
+          </p>
+          <div className="text-xs text-white/40 mt-3">
+            {isOwner ? (
+              `Created: ${new Date(vault.createdAt).toLocaleDateString()}`
+            ) : (
+              <>
+                Owner: {vault.ownerId?.firstName} {vault.ownerId?.lastName}
+                <br />
+                My Role:{" "}
+                <span className="font-medium capitalize text-cyan-400">
+                  {vault.participants?.find(p => p.participantId?._id === user?._id)?.role || "participant"}
+                </span>
+              </>
+            )}
           </div>
-
-          <button
-            type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full"
-          >
-            Create Vault
-          </button>
-        </form>
-
-        {/* My Vaults (Owned) Section */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-3">
-            📁 My Vaults ({ownedVaults.length})
-          </h2>
-          {ownedVaults.length === 0 ? (
-            <p className="text-gray-500 text-sm">You haven't created any vaults yet.</p>
-          ) : (
-            <ul className="divide-y divide-gray-200 border rounded-lg">
-              {ownedVaults.map((vault) => (
-                <li
-                  key={vault._id}
-                  className="py-4 px-4 flex justify-between items-center hover:bg-gray-50"
-                >
-                  <div>
-                    <p className="font-semibold text-gray-800">{vault.title}</p>
-                    <p className="text-gray-500 text-sm">{vault.description}</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Created: {new Date(vault.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => navigate(`/vaults/${vault._id}`)}
-                      className="text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => handleDeleteVault(vault._id)}
-                      className="text-red-600 hover:text-red-800 font-medium"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
-
-        {/* Participated Vaults Section */}
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-3">
-            🤝 Vaults I Participate In ({participatedVaults.length})
-          </h2>
-          {participatedVaults.length === 0 ? (
-            <p className="text-gray-500 text-sm">
-              You are not participating in any vaults yet.
-            </p>
-          ) : (
-            <ul className="divide-y divide-gray-200 border rounded-lg">
-              {participatedVaults.map((vault) => {
-                // Find user's role in this vault
-                const myParticipation = vault.participants?.find(
-                  (p) => p.participantId?._id === user?._id
-                );
-                const myRole = myParticipation?.role || "participant";
-
-                return (
-                  <li
-                    key={vault._id}
-                    className="py-4 px-4 flex justify-between items-center hover:bg-gray-50"
-                  >
-                    <div>
-                      <p className="font-semibold text-gray-800">{vault.title}</p>
-                      <p className="text-gray-500 text-sm">{vault.description}</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Owner: {vault.ownerId?.firstName} {vault.ownerId?.lastName} •{" "}
-                        My Role: <span className="font-medium capitalize">{myRole}</span>
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => navigate(`/vaults/${vault._id}`)}
-                        className="text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        View
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+        <div className="mt-4 pt-4 border-t border-white/10 flex justify-end items-center gap-2">
+          <button
+            onClick={() => navigate(`/vaults/${vault._id}`)}
+            className="flex items-center gap-1 text-sm text-cyan-400 hover:text-cyan-300 font-semibold transition-colors"
+          >
+            <EyeIcon className="w-4 h-4" />
+            View
+          </button>
+          {isOwner && (
+            <button
+              onClick={() => handleDeleteVault(vault._id)}
+              className="flex items-center gap-1 text-sm text-red-500 hover:text-red-400 font-semibold transition-colors"
+            >
+              <TrashIcon className="w-4 h-4" />
+              Delete
+            </button>
           )}
         </div>
       </div>
+    </div>
+  );
+
+  // ---------------- Render ----------------
+  return (
+    <div className="min-h-screen w-full bg-slate-50 text-gray-900">
+      {/* Header */}
+  <header className="bg-white backdrop-blur-sm border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 h-20 flex items-center justify-between">
+          <Link
+            to="/dashboard"
+            className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-indigo-600 transition-colors"
+          >
+            <ChevronLeftIcon className="w-5 h-5" />
+            Back to Dashboard
+          </Link>
+          <h1 className="text-xl md:text-2xl font-extrabold tracking-wide flex items-center gap-2 text-gray-800">
+            <span className="inline-block bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-3 py-1 rounded-lg text-sm shadow">Vaults</span>
+            <span className="text-gray-700 font-semibold">Manager</span>
+          </h1>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 md:px-8 py-10 grid grid-cols-1 lg:grid-cols-3 gap-10">
+        {/* Left Column: Create Vault Form */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-6 sticky top-8">
+            <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <PlusIcon className="w-6 h-6 text-blue-600" />
+              Create New Vault
+            </h2>
+            {message && (
+              <div
+                className={`mb-4 p-3 rounded-lg text-sm font-medium ${
+                  message.type === "success"
+                    ? "bg-green-50 text-green-700 border border-green-200"
+                    : "bg-red-50 text-red-700 border border-red-200"
+                }`}
+              >
+                {message.text}
+              </div>
+            )}
+            <form onSubmit={handleCreateVault} className="space-y-5">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Title</label>
+                <input
+                  type="text"
+                  placeholder="Vault Title"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Description</label>
+                <textarea
+                  placeholder="Short description"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition"
+                  rows="3"
+                ></textarea>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase mb-3 flex items-center gap-1">
+                  <InformationCircleIcon className="w-4 h-4 text-indigo-500" /> Release Rules (days)
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  {["inactivityPeriod", "gracePeriod", "timeLock", "approvalsRequired"].map((key) => (
+                    <div key={key}>
+                      <label className="block text-[10px] font-medium text-gray-500 mb-1 capitalize">
+                        {key.replace(/([A-Z])/g, " $1").trim()}
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={form[key]}
+                        onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                        className="w-full bg-white border border-gray-300 rounded-md px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-3 rounded-lg font-semibold text-white shadow-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-transform active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {isSubmitting ? "Creating..." : "Create Vault"}
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* Right Column: Vault Lists */}
+        <div className="lg:col-span-2 space-y-10">
+          {/* Owned Vaults */}
+          <section>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <LockClosedIcon className="w-6 h-6 text-blue-600" /> My Vaults
+                <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded-md">
+                  {ownedVaults.length}
+                </span>
+              </h2>
+            </div>
+            {loading ? (
+              <p className="text-sm text-gray-500">Loading...</p>
+            ) : ownedVaults.length === 0 ? (
+              <div className="border border-dashed border-gray-300 rounded-xl p-6 text-center bg-white">
+                <p className="text-sm text-gray-700 font-medium">You haven't created any vaults yet.</p>
+                <p className="text-xs text-gray-500 mt-1">Create one using the form on the left.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {ownedVaults.map((vault) => (
+                  <div
+                    key={vault._id}
+                    className="group bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-lg transition p-5 flex flex-col"
+                  >
+                    <h3 className="font-semibold text-gray-900 truncate tracking-wide">{vault.title}</h3>
+                    <p className="text-sm text-gray-700 mt-1 line-clamp-2">
+                      {vault.description || "No description provided."}
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-3">Created: {new Date(vault.createdAt).toLocaleDateString()}</p>
+                    <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end gap-3">
+                      <button
+                        onClick={() => navigate(`/vaults/${vault._id}`)}
+                        className="text-sm font-semibold text-blue-600 hover:text-indigo-600 flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                      >
+                        <EyeIcon className="w-4 h-4" /> View
+                      </button>
+                      <button
+                        onClick={() => handleDeleteVault(vault._id)}
+                        className="text-sm font-semibold text-red-600 hover:text-red-700 flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-red-500 rounded"
+                      >
+                        <TrashIcon className="w-4 h-4" /> Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Participated Vaults */}
+          <section>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <UserGroupIcon className="w-6 h-6 text-indigo-600" /> Participating
+                <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded-md">
+                  {participatedVaults.length}
+                </span>
+              </h2>
+            </div>
+            {loading ? (
+              <p className="text-sm text-gray-500">Loading...</p>
+            ) : participatedVaults.length === 0 ? (
+              <div className="border border-dashed border-gray-300 rounded-xl p-6 text-center bg-white">
+                <p className="text-sm text-gray-700 font-medium">You are not participating in any vaults yet.</p>
+                <p className="text-xs text-gray-500 mt-1">You will see vaults you are invited to here.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {participatedVaults.map((vault) => (
+                  <div
+                    key={vault._id}
+                    className="group bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-lg transition p-5 flex flex-col"
+                  >
+                    <h3 className="font-semibold text-gray-900 truncate tracking-wide">{vault.title}</h3>
+                    <p className="text-sm text-gray-700 mt-1 line-clamp-2">
+                      {vault.description || "No description provided."}
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-3">
+                      Owner: {vault.ownerId?.firstName} {vault.ownerId?.lastName}
+                      <br />
+                      My Role:{" "}
+                      <span className="font-medium capitalize text-indigo-600">
+                        {vault.participants?.find(p => p.participantId?._id === user?._id)?.role || "participant"}
+                      </span>
+                    </p>
+                    <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end gap-3">
+                      <button
+                        onClick={() => navigate(`/vaults/${vault._id}`)}
+                        className="text-sm font-semibold text-indigo-600 hover:text-blue-600 flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded"
+                      >
+                        <EyeIcon className="w-4 h-4" /> View
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </main>
     </div>
   );
 }

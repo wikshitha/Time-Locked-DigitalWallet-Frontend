@@ -22,17 +22,26 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 p-4">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-20 left-20 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+    <div className="min-h-screen flex items-center justify-center p-4 relative">
+      {/* Background Image */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: 'url(/poly_digital_06.jpg)' }}
+      >
+        {/* Lighter overlay for better image visibility */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 via-purple-900/40 to-pink-900/40"></div>
+      </div>
+
+      {/* Subtle animated background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-20 w-72 h-72 bg-white/5 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
       </div>
 
       {/* Login Card */}
       <div className="relative z-10 w-full max-w-md">
-        {/* Glass morphism card */}
-        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl shadow-2xl p-8 md:p-10">
+        {/* Enhanced glass morphism card with darker background */}
+        <div className="backdrop-blur-2xl bg-gray-900/80 border border-white/30 rounded-3xl shadow-2xl p-8 md:p-10">
           {/* Logo/Icon */}
           <div className="flex justify-center mb-6">
             <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform">
@@ -46,14 +55,14 @@ export default function LoginPage() {
           <h1 className="text-3xl font-bold text-center text-white mb-2">
             Welcome Back
           </h1>
-          <p className="text-center text-white/70 mb-8">
+          <p className="text-center text-white/80 mb-8">
             Sign in to access your secure vault
           </p>
 
           {/* Error Message */}
           {error && (
-            <div className="mb-6 p-4 bg-red-500/20 border border-red-400/30 rounded-xl backdrop-blur-sm">
-              <p className="text-red-100 text-sm text-center">{error}</p>
+            <div className="mb-6 p-4 bg-red-600/90 border border-red-400/50 rounded-xl backdrop-blur-sm">
+              <p className="text-white text-sm text-center font-medium">{error}</p>
             </div>
           )}
 
@@ -75,7 +84,7 @@ export default function LoginPage() {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all backdrop-blur-sm"
+                  className="w-full pl-12 pr-4 py-3 bg-black/40 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
                   required
                 />
               </div>
@@ -97,7 +106,7 @@ export default function LoginPage() {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-12 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all backdrop-blur-sm"
+                  className="w-full pl-12 pr-12 py-3 bg-black/40 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
                   required
                 />
                 <button
@@ -117,17 +126,6 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
-            </div>
-
-            {/* Remember & Forgot */}
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center text-white/70 cursor-pointer hover:text-white/90 transition-colors">
-                <input type="checkbox" className="mr-2 rounded bg-white/10 border-white/20" />
-                Remember me
-              </label>
-              <a href="#" className="text-white/70 hover:text-white transition-colors">
-                Forgot password?
-              </a>
             </div>
 
             {/* Login Button */}
@@ -156,7 +154,7 @@ export default function LoginPage() {
 
           {/* Register Link */}
           <div className="mt-6 text-center">
-            <p className="text-white/70">
+            <p className="text-white/80">
               Don't have an account?{" "}
               <Link
                 to="/register"
@@ -169,7 +167,7 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <div className="mt-6 text-center text-white/50 text-sm">
+        <div className="mt-6 text-center text-white/60 text-sm">
           <p>Secure • Encrypted • Time-Locked</p>
         </div>
       </div>

@@ -63,21 +63,29 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-10 right-10 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-10 left-10 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse delay-700"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
+    <div className="min-h-screen flex items-center justify-center p-4 relative">
+      {/* Background Image */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: 'url(/poly_digital_06.jpg)' }}
+      >
+        {/* Lighter overlay for better image visibility */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 via-purple-900/40 to-pink-900/40"></div>
+      </div>
+
+      {/* Subtle animated background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-20 w-72 h-72 bg-white/5 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
       </div>
 
       {/* Register Card */}
       <div className="relative z-10 w-full max-w-2xl">
-        {/* Glass morphism card */}
-        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl shadow-2xl p-8 md:p-10">
+        {/* Enhanced glass morphism card with darker background */}
+        <div className="backdrop-blur-2xl bg-gray-900/80 border border-white/30 rounded-3xl shadow-2xl p-8 md:p-10">
           {/* Logo/Icon */}
           <div className="flex justify-center mb-6">
-            <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-600 rounded-2xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform">
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform">
               <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
               </svg>
@@ -88,14 +96,14 @@ export default function RegisterPage() {
           <h1 className="text-3xl font-bold text-center text-white mb-2">
             Create Account
           </h1>
-          <p className="text-center text-white/70 mb-8">
+          <p className="text-center text-white/80 mb-8">
             Join us to secure your digital assets
           </p>
 
           {/* Error Message */}
           {error && (
-            <div className="mb-6 p-4 bg-red-500/20 border border-red-400/30 rounded-xl backdrop-blur-sm">
-              <p className="text-red-100 text-sm text-center">{error}</p>
+            <div className="mb-6 p-4 bg-red-600/90 border border-red-400/50 rounded-xl backdrop-blur-sm">
+              <p className="text-white text-sm text-center font-medium">{error}</p>
             </div>
           )}
 
@@ -119,7 +127,7 @@ export default function RegisterPage() {
                     placeholder="John"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all backdrop-blur-sm"
+                    className="w-full pl-12 pr-4 py-3 bg-black/40 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
                     required
                   />
                 </div>
@@ -141,7 +149,7 @@ export default function RegisterPage() {
                     placeholder="Doe"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all backdrop-blur-sm"
+                    className="w-full pl-12 pr-4 py-3 bg-black/40 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
                   />
                 </div>
               </div>
@@ -163,7 +171,7 @@ export default function RegisterPage() {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all backdrop-blur-sm"
+                  className="w-full pl-12 pr-4 py-3 bg-black/40 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
                   required
                 />
               </div>
@@ -183,7 +191,7 @@ export default function RegisterPage() {
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all backdrop-blur-sm appearance-none cursor-pointer"
+                  className="w-full pl-12 pr-4 py-3 bg-black/40 border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all appearance-none cursor-pointer"
                 >
                   <option value="owner" className="bg-gray-800">Owner (Full Access)</option>
                   <option value="beneficiary" className="bg-gray-800">Beneficiary (Access After Release)</option>
@@ -214,7 +222,7 @@ export default function RegisterPage() {
                   placeholder="Create a strong password"
                   value={password}
                   onChange={handlePasswordChange}
-                  className="w-full pl-12 pr-12 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all backdrop-blur-sm"
+                  className="w-full pl-12 pr-12 py-3 bg-black/40 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
                   required
                 />
                 <button
@@ -247,7 +255,7 @@ export default function RegisterPage() {
                     </div>
                     <span className="text-xs text-white/70">{getStrengthText()}</span>
                   </div>
-                  <p className="text-xs text-white/50">
+                  <p className="text-xs text-white/60">
                     Use 8+ characters with mix of letters, numbers & symbols
                   </p>
                 </div>
@@ -270,12 +278,12 @@ export default function RegisterPage() {
                   placeholder="Confirm your password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all backdrop-blur-sm"
+                  className="w-full pl-12 pr-4 py-3 bg-black/40 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
                   required
                 />
               </div>
               {confirmPassword && password !== confirmPassword && (
-                <p className="mt-1 text-xs text-red-300">Passwords don't match</p>
+                <p className="mt-1 text-xs text-red-300 font-medium">Passwords don't match</p>
               )}
             </div>
 
@@ -287,13 +295,13 @@ export default function RegisterPage() {
                 required
                 className="mt-1 mr-3 rounded bg-white/10 border-white/20"
               />
-              <label htmlFor="terms" className="text-sm text-white/70">
+              <label htmlFor="terms" className="text-sm text-white/80">
                 I agree to the{" "}
-                <a href="#" className="text-white hover:underline">
+                <a href="#" className="text-white font-medium hover:underline">
                   Terms & Conditions
                 </a>{" "}
                 and{" "}
-                <a href="#" className="text-white hover:underline">
+                <a href="#" className="text-white font-medium hover:underline">
                   Privacy Policy
                 </a>
               </label>
@@ -306,7 +314,7 @@ export default function RegisterPage() {
               className={`w-full py-3 rounded-xl font-semibold text-white shadow-lg transform transition-all duration-200 ${
                 loading || (password && confirmPassword && password !== confirmPassword)
                   ? "bg-white/20 cursor-not-allowed"
-                  : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 hover:scale-[1.02] active:scale-[0.98]"
+                  : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 hover:scale-[1.02] active:scale-[0.98]"
               }`}
             >
               {loading ? (
@@ -325,7 +333,7 @@ export default function RegisterPage() {
 
           {/* Login Link */}
           <div className="mt-6 text-center">
-            <p className="text-white/70">
+            <p className="text-white/80">
               Already have an account?{" "}
               <Link
                 to="/login"
@@ -338,7 +346,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Footer */}
-        <div className="mt-6 text-center text-white/50 text-sm">
+        <div className="mt-6 text-center text-white/60 text-sm">
           <p>Secure • Encrypted • Time-Locked</p>
         </div>
       </div>
