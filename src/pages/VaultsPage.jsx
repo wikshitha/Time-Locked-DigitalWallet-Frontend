@@ -11,6 +11,7 @@ import {
   UserGroupIcon,
   InformationCircleIcon,
 } from "@heroicons/react/24/outline";
+import toast from "react-hot-toast";
 
 export default function VaultsPage() {
   const { token, user } = useAuthStore();
@@ -79,9 +80,11 @@ export default function VaultsPage() {
         timeLock: 7,
         approvalsRequired: 1,
       });
+      toast.success("Vault created successfully!");
       setMessage({ type: "success", text: "Vault created successfully!" });
     } catch (err) {
       console.error("Create vault error:", err);
+      toast.error("Failed to create vault: " );
       setMessage({
         type: "error",
         text: "Failed to create vault: " + (err.response?.data?.error || err.message),
@@ -95,14 +98,17 @@ export default function VaultsPage() {
   const handleDeleteVault = async (id) => {
     if (!window.confirm("Are you sure you want to delete this vault? This action cannot be undone.")) return;
     setMessage("");
+
     try {
       await API.delete(`/api/vaults/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setOwnedVaults((prev) => prev.filter((v) => v._id !== id));
+      toast.success("Vault deleted successfully!");
       setMessage({ type: "success", text: "Vault deleted successfully" });
     } catch (err) {
       console.error("Delete vault error:", err);
+      toast.error("Failed to delete vault: ");
       setMessage({
         type: "error",
         text: "Failed to delete vault: " + (err.response?.data?.message || ""),

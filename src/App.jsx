@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 import { useEffect } from "react";
 import LoginPage from "./pages/LoginPage.jsx";
 import RegisterPage from "./pages/RegisterPage.jsx";
@@ -26,6 +27,15 @@ export default function App() {
 
   return (
     <Router>
+      {/* Global toast container */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: { fontSize: "0.95rem" },
+          success: { iconTheme: { primary: "#16a34a", secondary: "#ffffff" } },
+          error: { iconTheme: { primary: "#dc2626", secondary: "#ffffff" } }
+        }}
+      />
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<Navigate to="/login" replace />} />

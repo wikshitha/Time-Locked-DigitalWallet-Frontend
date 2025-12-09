@@ -11,6 +11,7 @@ import {
   decryptVaultKeyFromBackup,
   restoreVaultKeyFromSealed,
 } from "../utils/cryptoUtils.js";
+import toast from "react-hot-toast";
 
 export default function VaultDetailPage() {
   const { id } = useParams();
@@ -46,6 +47,7 @@ export default function VaultDetailPage() {
         fetchReleaseStatus();
       }
     } catch (err) {
+      toast.error("Failed to load vault details");
       console.error("Error fetching vault:", err);
       setMessage("❌ Failed to load vault details");
     }
@@ -59,7 +61,9 @@ export default function VaultDetailPage() {
       });
       setReleaseStatus(res.data);
     } catch (err) {
+      toast.error("Failed to fetch release status");
       console.error("Error fetching release status:", err);
+      
     }
   };
 
@@ -75,7 +79,8 @@ export default function VaultDetailPage() {
 
       try {
         setRestoringKey(true);
-        setMessage("🔐 No local vault key found — attempting restore...");
+        setMessage(" No local vault key found — attempting restore...");
+
 
         // First, try to get sealed key for participants (beneficiaries/witnesses)
         if (!isOwner) {
@@ -88,15 +93,18 @@ export default function VaultDetailPage() {
               // Get user's private key from localStorage
               const privateKeyPem = localStorage.getItem(`privateKey_${user.email}`);
               if (!privateKeyPem) {
+                toast.error("Your private key is not available. Please login again.");
                 throw new Error("Your private key is not available. Please login again.");
               }
 
               // Unwrap the vault key using private key
               await restoreVaultKeyFromSealed(id, sealedRes.data.encKey, privateKeyPem);
+              toast.success("Vault key restored from sealed key!");
               setMessage("✅ Vault key restored from sealed key!");
               return;
             }
           } catch (sealedErr) {
+            toast.error("Sealed key restore failed, trying password backup.");
             console.warn("Sealed key restore failed, trying password backup:", sealedErr);
           }
         }
@@ -115,8 +123,10 @@ export default function VaultDetailPage() {
         );
 
         localStorage.setItem(`vaultKey_${id}`, decryptedVaultKeyB64);
+        toast.success("Vault key restored from password backup!");
         setMessage("✅ Vault key restored from password backup!");
       } catch (err) {
+        toast.error("Vault key restore failed.");
         console.warn("Vault key restore failed:", err);
         setMessage("⚠️ Vault key restore failed. " + (err.message || "You may not have access yet."));
       } finally {
@@ -134,7 +144,7 @@ export default function VaultDetailPage() {
 
     try {
       setUploading(true);
-      setMessage("Encrypting and uploading...");
+      toast("Encrypting and uploading...");
 
       const { encryptedData, encKey } = await encryptFileForVault(file, id);
       const metadata = { name: file.name, type: file.type, size: file.size };
@@ -159,10 +169,12 @@ export default function VaultDetailPage() {
         );
       }
 
+      toast.success("File encrypted, uploaded & key backed up!");
       setMessage("✅ File encrypted, uploaded & key backed up!");
       setFile(null);
       fetchVault();
     } catch (err) {
+      toast.error("Upload failed: " + (err.response?.data?.message || err.message));
       console.error("Upload failed:", err);
       setMessage("❌ Upload failed: " + (err.response?.data?.message || err.message));
     } finally {
@@ -173,7 +185,8 @@ export default function VaultDetailPage() {
   // ---------------- Decrypt & Download ----------------
   const handleDecryptDownload = async (item) => {
     try {
-      setMessage(`🔄 Downloading & decrypting ${item.metadata?.name}...`);
+
+      setMessage(` Downloading & decrypting ${item.metadata?.name}...`);
 
       const res = await fetch(item.fileUrl);
       const encryptedArrayBuffer = await res.arrayBuffer();
@@ -202,10 +215,12 @@ export default function VaultDetailPage() {
       a.click();
       URL.revokeObjectURL(url);
 
-      setMessage(`✅ ${item.metadata?.name} decrypted successfully!`);
+      toast.success(` ${item.metadata?.name} decrypted successfully!`);
+      setMessage(` ${item.metadata?.name} decrypted successfully!`);
     } catch (err) {
       console.error("Decryption failed:", err);
-      setMessage("❌ Failed to decrypt or download file.");
+      toast.error(" Failed to decrypt or download file.");
+      setMessage(" Failed to decrypt or download file.");
     }
   };
 
@@ -218,10 +233,10 @@ export default function VaultDetailPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setVault(res.data.vault);
-      setMessage("✅ Participant removed successfully!");
+      toast.success("Participant removed successfully!");
     } catch (err) {
+      toast.error("Failed to remove participant: " );
       console.error("Remove participant failed:", err);
-      setMessage("❌ " + (err.response?.data?.message || "Failed to remove participant"));
     }
   };
 
@@ -309,10 +324,10 @@ export default function VaultDetailPage() {
                       },
                       { headers: { Authorization: `Bearer ${token}` } }
                     );
-                    setMessage("✅ Release approved successfully!");
+                    toast.success("Release approved successfully!");
                     fetchReleaseStatus();
                   } catch (err) {
-                    setMessage("❌ " + (err.response?.data?.message || "Failed to approve"));
+                    toast.error("Failed to approve release: ");
                   }
                 }}
                 className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
@@ -333,10 +348,10 @@ export default function VaultDetailPage() {
                       },
                       { headers: { Authorization: `Bearer ${token}` } }
                     );
-                    setMessage("✅ Release rejected successfully!");
+                    toast.success("Release rejected successfully!");
                     fetchReleaseStatus();
                   } catch (err) {
-                    setMessage("❌ " + (err.response?.data?.message || "Failed to reject"));
+                    toast.error("Failed to reject release: ");
                   }
                 }}
                 className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
@@ -391,15 +406,13 @@ export default function VaultDetailPage() {
                     { vaultId: id, email, role },
                     { headers: { Authorization: `Bearer ${token}` } }
                   );
+                  toast.success("Participant added successfully!");
                   setVault(res.data.vault);
                   setMessage(`✅ ${email} added as ${role}`);
                   e.target.reset();
                 } catch (err) {
                   console.error("Add participant failed:", err);
-                  setMessage(
-                    "❌ " +
-                      (err.response?.data?.message || "Failed to add participant")
-                  );
+                  toast.error("Failed to add participant: " );
                 }
               }}
               className="space-y-3"
@@ -529,7 +542,9 @@ export default function VaultDetailPage() {
         {/* Message */}
         {message && (
           <p
+          
             className={`mt-4 text-sm text-center ${
+
               message.startsWith("✅") || message.startsWith("🔐")
                 ? "text-green-600"
                 : "text-red-500"
