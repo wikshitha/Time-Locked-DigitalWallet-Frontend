@@ -79,8 +79,6 @@ export default function VaultDetailPage() {
 
       try {
         setRestoringKey(true);
-        setMessage(" No local vault key found — attempting restore...");
-
 
         // First, try to get sealed key for participants (beneficiaries/witnesses)
         if (!isOwner) {
@@ -93,19 +91,17 @@ export default function VaultDetailPage() {
               // Get user's private key from localStorage
               const privateKeyPem = localStorage.getItem(`privateKey_${user.email}`);
               if (!privateKeyPem) {
-                toast.error("Your private key is not available. Please login again.");
                 throw new Error("Your private key is not available. Please login again.");
               }
 
               // Unwrap the vault key using private key
               await restoreVaultKeyFromSealed(id, sealedRes.data.encKey, privateKeyPem);
-              toast.success("Vault key restored from sealed key!");
-              setMessage("✅ Vault key restored from sealed key!");
+              toast.success("Vault key restored successfully!");
               return;
             }
           } catch (sealedErr) {
-            toast.error("Sealed key restore failed, trying password backup.");
-            console.warn("Sealed key restore failed, trying password backup:", sealedErr);
+            // Silently continue to password backup for participants
+            console.warn("Sealed key not available, trying password backup:", sealedErr);
           }
         }
 
@@ -115,7 +111,11 @@ export default function VaultDetailPage() {
         });
 
         const encryptedVaultKey = res.data.encryptedVaultKey;
-        if (!encryptedVaultKey) throw new Error("No backup found on server");
+        if (!encryptedVaultKey) {
+          // No backup exists yet - this is normal for new vaults, silently continue
+          console.log("No vault key backup found yet. Will be created on first file upload.");
+          return;
+        }
 
         const decryptedVaultKeyB64 = await decryptVaultKeyFromBackup(
           encryptedVaultKey,
@@ -123,12 +123,16 @@ export default function VaultDetailPage() {
         );
 
         localStorage.setItem(`vaultKey_${id}`, decryptedVaultKeyB64);
-        toast.success("Vault key restored from password backup!");
-        setMessage("✅ Vault key restored from password backup!");
+        toast.success("Vault key restored successfully!");
       } catch (err) {
-        toast.error("Vault key restore failed.");
-        console.warn("Vault key restore failed:", err);
-        setMessage("⚠️ Vault key restore failed. " + (err.message || "You may not have access yet."));
+        // Only show error if it's not a 404 (missing backup is normal for new vaults)
+        if (err.response?.status !== 404) {
+          console.warn("Vault key restore failed:", err);
+          toast.error("Unable to restore vault key. " + (err.message || "You may need to re-authenticate."));
+        } else {
+          // 404 means no backup exists yet - normal for new vaults, don't show error
+          console.log("No vault key backup found. Will be created when you upload the first file.");
+        }
       } finally {
         setRestoringKey(false);
       }
@@ -253,7 +257,10 @@ export default function VaultDetailPage() {
       <div className="max-w-3xl mx-auto bg-white shadow-lg rounded-2xl p-6">
         <h1 className="text-3xl font-bold mb-2 text-gray-800">Vault: {vault.title}</h1>
         <p className="text-gray-500 mb-6">
-          Owner: {vault.ownerId?.firstName || "Unknown"} {vault.ownerId?.lastName || ""} | 
+          Owner: {isOwner 
+            ? `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || user?.email || "You"
+            : `${vault.ownerId?.firstName || ""} ${vault.ownerId?.lastName || ""}`.trim() || "Unknown"
+          } | 
           Created: {new Date(vault.createdAt).toLocaleString()}
           {!isOwner && (
             <span className="ml-2 text-blue-600 font-medium">
