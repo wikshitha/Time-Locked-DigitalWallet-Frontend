@@ -8,7 +8,6 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState("owner");
   const [showPassword, setShowPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
 
@@ -40,7 +39,7 @@ export default function RegisterPage() {
     }
 
     try {
-      await register({ firstName, lastName, email, password, role });
+      await register({ firstName, lastName, email, password, role: "owner" });
       navigate("/dashboard");
     } catch (err) {
       console.error("Registration failed:", err);
@@ -174,35 +173,6 @@ export default function RegisterPage() {
                   className="w-full pl-12 pr-4 py-3 bg-black/40 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
                   required
                 />
-              </div>
-            </div>
-
-            {/* Role Selection */}
-            <div className="relative">
-              <label className="block text-white/90 text-sm font-medium mb-2">
-                Account Role
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                </div>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-black/40 border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all appearance-none cursor-pointer"
-                >
-                  <option value="owner" className="bg-gray-800">Owner (Full Access)</option>
-                  <option value="beneficiary" className="bg-gray-800">Beneficiary (Access After Release)</option>
-                  <option value="witness" className="bg-gray-800">Witness (Approve Releases)</option>
-                  <option value="shared" className="bg-gray-800">Shared (View Access)</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
               </div>
             </div>
 
