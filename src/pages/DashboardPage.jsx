@@ -99,16 +99,7 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Quick Stats Placeholder (Future enhancement) */}
-        <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {["Vaults", "Releases", "Approvals", "Logs"].map((label) => (
-            <div key={label} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col">
-              <span className="text-xs uppercase tracking-wide text-gray-500 font-semibold">{label}</span>
-              <span className="mt-2 text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 text-transparent bg-clip-text select-none">—</span>
-              <span className="mt-1 text-xs text-gray-400">Coming soon</span>
-            </div>
-          ))}
-        </div>
+       
       </main>
 
       {/* Footer */}
