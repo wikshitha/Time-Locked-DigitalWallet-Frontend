@@ -312,7 +312,7 @@ export default function VaultDetailPage() {
         {/* Witness Approval Section */}
         {!isOwner && userRole === "witness" && releaseStatus?.hasActiveRelease && 
          !releaseStatus.inGracePeriod && !releaseStatus.isReleased && 
-         releaseStatus.status !== "rejected" && (
+         releaseStatus.status !== "rejected" && !releaseStatus.userHasConfirmed && (
           <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <h3 className="font-semibold text-yellow-800 mb-3">⚖️ Witness Approval Required</h3>
             <p className="text-sm text-gray-600 mb-3">
@@ -369,6 +369,31 @@ export default function VaultDetailPage() {
           </div>
         )}
 
+        {/* Show confirmation status if user has already confirmed */}
+        {!isOwner && userRole === "witness" && releaseStatus?.hasActiveRelease && 
+         releaseStatus.userHasConfirmed && !releaseStatus.isReleased && (
+          <div className={`mb-6 p-4 border rounded-lg ${
+            releaseStatus.userConfirmationStatus === "approved" 
+              ? "bg-green-50 border-green-200" 
+              : "bg-red-50 border-red-200"
+          }`}>
+            <h3 className={`font-semibold mb-2 ${
+              releaseStatus.userConfirmationStatus === "approved" 
+                ? "text-green-800" 
+                : "text-red-800"
+            }`}>
+              {releaseStatus.userConfirmationStatus === "approved" 
+                ? "✅ You have approved this release" 
+                : "❌ You have rejected this release"}
+            </h3>
+            <p className="text-sm text-gray-600">
+              {releaseStatus.userConfirmationStatus === "approved" 
+                ? "Your approval has been recorded. Waiting for other witnesses or time-lock completion." 
+                : "Your rejection has been recorded. The release process has been stopped."}
+            </p>
+          </div>
+        )}
+
         {/* Upload Section - Only for Vault Owners */}
         {isOwner && (
           <div className="mb-8 border-t pt-4">
@@ -414,7 +439,8 @@ export default function VaultDetailPage() {
                     { headers: { Authorization: `Bearer ${token}` } }
                   );
                   toast.success("Participant added successfully!");
-                  setVault(res.data.vault);
+                  // Refetch vault to get populated participant data
+                  await fetchVault();
                   setMessage(`✅ ${email} added as ${role}`);
                   e.target.reset();
                 } catch (err) {
@@ -506,7 +532,9 @@ export default function VaultDetailPage() {
                 {userRole === "beneficiary" 
                   ? "As a beneficiary, you can only access files after the vault is fully released (grace period + approvals + time lock complete)."
                   : userRole === "witness"
-                  ? "As a witness, you can only access files after the vault is fully released. Your role is to approve or reject the release."
+                  ? "As a witness, you cannot access vault files. Your role is to approve or reject the release. Only beneficiaries can access files after release."
+                  : userRole === "shared"
+                  ? "As a shared participant, you cannot access vault files. Only beneficiaries can access files after the vault is released."
                   : "You can only access files after the vault is fully released."}
               </p>
             </div>
