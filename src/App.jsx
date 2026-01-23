@@ -7,7 +7,6 @@ import DashboardPage from "./pages/DashboardPage.jsx";
 import { useAuthStore } from "./store/useAuthStore.js";
 import VaultsPage from "./pages/VaultsPage.jsx";
 import VaultDetailPage from "./pages/VaultDetailPage.jsx";
-import ReleaseReviewPage from "./pages/ReleaseReviewPage.jsx";
 import ReleaseDashboard from "./pages/ReleaseDashboard.jsx";
 import AuditLogPage from "./pages/AuditLogPage.jsx";
 

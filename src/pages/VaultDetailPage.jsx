@@ -12,6 +12,7 @@ import {
   restoreVaultKeyFromSealed,
 } from "../utils/cryptoUtils.js";
 import toast from "react-hot-toast";
+import { XCircleIcon } from "@heroicons/react/24/outline";
 
 export default function VaultDetailPage() {
   const { id } = useParams();
@@ -27,6 +28,7 @@ export default function VaultDetailPage() {
   const [canAccessFiles, setCanAccessFiles] = useState(false);
   const [userRole, setUserRole] = useState("");
   const [releaseStatus, setReleaseStatus] = useState(null);
+  const [revokeLoading, setRevokeLoading] = useState(false);
 
   // ---------------- Fetch Vault ----------------
   const fetchVault = async () => {
@@ -42,10 +44,8 @@ export default function VaultDetailPage() {
       // Check if current user is the vault owner
       setIsOwner(res.data.isOwner || false);
 
-      // Fetch release status for participants
-      if (!res.data.isOwner) {
-        fetchReleaseStatus();
-      }
+      // Fetch release status for both owners and participants
+      fetchReleaseStatus();
     } catch (err) {
       toast.error("Failed to load vault details");
       console.error("Error fetching vault:", err);
@@ -244,6 +244,36 @@ export default function VaultDetailPage() {
     }
   };
 
+  // ---------------- Revoke Release ----------------
+  const handleRevokeRelease = async () => {
+    const reason = prompt(
+      `Are you sure you want to revoke the release for "${vault.title}"?\n\nOptional: Enter a reason for revocation:`
+    );
+
+    if (reason === null) return; // User clicked cancel
+
+    setRevokeLoading(true);
+    try {
+      await API.post(
+        "/api/releases/revoke",
+        { 
+          releaseId: releaseStatus.releaseId, 
+          reason: reason || "No reason provided" 
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success("✅ Release revoked successfully! The system will continue monitoring for inactivity.");
+      fetchReleaseStatus(); // Refresh release status
+      fetchVault(); // Refresh vault data
+    } catch (err) {
+      console.error("Error revoking release:", err);
+      toast.error(err.response?.data?.message || "Failed to revoke release");
+    } finally {
+      setRevokeLoading(false);
+    }
+  };
+
   // ---------------- UI Render ----------------
   if (!vault)
     return (
@@ -268,6 +298,40 @@ export default function VaultDetailPage() {
             </span>
           )}
         </p>
+
+        {/* Owner Revoke Section - Only show during grace period */}
+        {isOwner && releaseStatus?.hasActiveRelease && 
+         releaseStatus.status === "pending" && releaseStatus.inGracePeriod && (
+          <div className="mb-6 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h3 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
+                  <XCircleIcon className="w-5 h-5" />
+                  🚨 Release in Grace Period
+                </h3>
+                <p className="text-sm text-red-700 mb-1">
+                  A release has been triggered for this vault due to inactivity.
+                </p>
+                <p className="text-sm text-red-600 font-medium">
+                  ⏳ Grace period ends: {new Date(releaseStatus.gracePeriodEnd).toLocaleString()}
+                </p>
+                <p className="text-xs text-gray-600 mt-2 italic">
+                  You can revoke this release during the grace period. After revocation, 
+                  the system will continue monitoring for inactivity.
+                </p>
+              </div>
+              <button
+                onClick={handleRevokeRelease}
+                disabled={revokeLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-sm rounded-lg font-semibold transition-colors active:scale-95 disabled:cursor-not-allowed shadow-md whitespace-nowrap ml-4"
+                title="Revoke this release during grace period"
+              >
+                <XCircleIcon className="w-5 h-5" />
+                {revokeLoading ? "Revoking..." : "Revoke Release"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Release Status for Participants */}
         {!isOwner && releaseStatus && (
