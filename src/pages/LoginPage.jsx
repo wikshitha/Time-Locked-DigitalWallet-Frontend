@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useAuthStore } from "../store/useAuthStore.js";
 import { useNavigate, Link } from "react-router-dom";
+import { FaLock, FaShieldAlt, FaKey, FaFingerprint, FaUserPlus, FaFileAlt, FaEnvelope, FaEye, FaEyeSlash, FaArrowRight } from "react-icons/fa";
+import { HiSparkles } from "react-icons/hi";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -22,107 +24,157 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative">
-      {/* Background Image */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: 'url(/poly_digital_06.jpg)' }}
-      >
-        {/* Lighter overlay for better image visibility */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 via-purple-900/40 to-pink-900/40"></div>
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Animated Background Gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#000957] via-[#000957] to-[#344cb7] animate-gradient-shift"></div>
+      
+      {/* Floating animated shapes */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-[#ffeb00]/10 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-[#000957]/20 rounded-full blur-3xl animate-float-delayed"></div>
+        <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-[#ffeb00]/5 rounded-full blur-2xl animate-pulse"></div>
       </div>
 
-      {/* Subtle animated background elements */}
+      {/* Animated Floating Icons with React Icons */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-20 w-72 h-72 bg-white/5 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        {/* Lock Icons */}
+        <div className="absolute top-20 left-1/4 animate-float opacity-20">
+          <FaLock className="w-12 h-12 text-[#ffeb00]" />
+        </div>
+        <div className="absolute bottom-32 right-1/4 animate-float-delayed opacity-15">
+          <FaLock className="w-16 h-16 text-white" />
+        </div>
+        
+        {/* Shield Icons */}
+        <div className="absolute top-1/3 right-20 animate-float opacity-25">
+          <FaShieldAlt className="w-14 h-14 text-[#ffeb00]" />
+        </div>
+        
+        {/* Key Icons */}
+        <div className="absolute bottom-1/4 left-16 animate-float-delayed opacity-20">
+          <FaKey className="w-10 h-10 text-white" />
+        </div>
+        <div className="absolute top-40 right-32 animate-float opacity-15">
+          <FaKey className="w-12 h-12 text-[#ffeb00]" />
+        </div>
+
+        {/* Fingerprint Icons */}
+        <div className="absolute top-1/2 left-10 animate-float opacity-10">
+          <FaFingerprint className="w-16 h-16 text-white" />
+        </div>
+
+        {/* Sparkle effects */}
+        <div className="absolute top-10 left-1/2 animate-ping opacity-30">
+          <HiSparkles className="w-4 h-4 text-[#ffeb00]" />
+        </div>
+        <div className="absolute bottom-10 right-1/3 animate-ping opacity-40" style={{animationDelay: '1s'}}>
+          <HiSparkles className="w-5 h-5 text-white" />
+        </div>
+        <div className="absolute top-1/4 right-10 animate-ping opacity-25" style={{animationDelay: '2s'}}>
+          <HiSparkles className="w-4 h-4 text-[#ffeb00]" />
+        </div>
+      </div>
+
+      {/* Geometric patterns */}
+      <div className="absolute inset-0 opacity-5">
+        <div className="absolute top-0 left-0 w-full h-full" 
+          style={{ 
+            backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,235,0,0.1) 10px, rgba(255,235,0,0.1) 20px)` 
+          }}>
+        </div>
       </div>
 
       {/* Login Card */}
-      <div className="relative z-10 w-full max-w-md">
-        {/* Enhanced glass morphism card with darker background */}
-        <div className="backdrop-blur-2xl bg-gray-900/80 border border-white/30 rounded-3xl shadow-2xl p-8 md:p-10">
-          {/* Logo/Icon */}
-          <div className="flex justify-center mb-6">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform">
-              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
+      <div className="relative z-10 w-full max-w-md animate-fade-in-up">
+        {/* Glass morphism card */}
+        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl shadow-2xl p-8 md:p-10 hover:shadow-[0_0_40px_rgba(255,235,0,0.3)] transition-all duration-500">
+          {/* Logo */}
+          <div className="flex justify-center mb-4 animate-bounce-slow">
+            <div className="relative">
+              <img 
+                src="/logo.png" 
+                alt="LegacyLock Logo" 
+                className="w-24 h-24 object-contain drop-shadow-2xl transform hover:scale-110 hover:rotate-6 transition-all duration-500"
+              />
+            </div>
+          </div>
+
+          {/* Brand Name */}
+          <div className="text-center mb-4 relative">
+            <h2 className="text-3xl font-extrabold bg-gradient-to-r from-white via-[#ffeb00] to-white bg-clip-text text-transparent animate-gradient-text tracking-wider">
+              LegacyLock
+            </h2>
+            {/* Decorative elements */}
+            <div className="flex justify-center items-center gap-2 mt-2">
+              <div className="w-8 h-0.5 bg-gradient-to-r from-transparent to-[#ffeb00] animate-expand"></div>
+              <FaLock className="w-4 h-4 text-[#ffeb00] animate-pulse" />
+              <div className="w-8 h-0.5 bg-gradient-to-l from-transparent to-[#ffeb00] animate-expand"></div>
             </div>
           </div>
 
           {/* Title */}
-          <h1 className="text-3xl font-bold text-center text-white mb-2">
+          <h1 className="text-4xl font-bold text-center bg-gradient-to-r from-white via-[#ffeb00] to-white bg-clip-text text-transparent mb-2 animate-gradient-text">
             Welcome Back
           </h1>
-          <p className="text-center text-white/80 mb-8">
-            Sign in to access your secure vault
+          <p className="text-center text-white/90 mb-8 text-sm">
+            Sign in to access your secure digital vault
           </p>
 
           {/* Error Message */}
           {error && (
-            <div className="mb-6 p-4 bg-red-600/90 border border-red-400/50 rounded-xl backdrop-blur-sm">
+            <div className="mb-6 p-4 bg-red-500/20 border border-red-400/50 rounded-xl backdrop-blur-sm animate-shake">
               <p className="text-white text-sm text-center font-medium">{error}</p>
             </div>
           )}
 
           {/* Form */}
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleLogin} className="space-y-6">
             {/* Email Input */}
-            <div className="relative">
-              <label className="block text-white/90 text-sm font-medium mb-2">
+            <div className="relative group">
+              <label className="text-white/95 text-sm font-semibold mb-2 block">
                 Email Address
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                  </svg>
+                  <FaEnvelope className="h-5 w-5 text-[#ffeb00]" />
                 </div>
                 <input
                   type="email"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-black/40 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
+                  className="w-full pl-12 pr-4 py-3.5 bg-white/5 border-2 border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#ffeb00] focus:bg-white/10 transition-all duration-300 hover:border-white/30"
                   required
                 />
               </div>
             </div>
 
             {/* Password Input */}
-            <div className="relative">
-              <label className="block text-white/90 text-sm font-medium mb-2">
+            <div className="relative group">
+              <label className="text-white/95 text-sm font-semibold mb-2 block">
                 Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
+                  <FaLock className="h-5 w-5 text-[#ffeb00]" />
                 </div>
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-12 py-3 bg-black/40 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
+                  className="w-full pl-12 pr-12 py-3.5 bg-white/5 border-2 border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#ffeb00] focus:bg-white/10 transition-all duration-300 hover:border-white/30"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center"
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center group"
                 >
                   {showPassword ? (
-                    <svg className="h-5 w-5 text-white/50 hover:text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
+                    <FaEyeSlash className="h-5 w-5 text-white/50 group-hover:text-[#ffeb00] transition-colors" />
                   ) : (
-                    <svg className="h-5 w-5 text-white/50 hover:text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
+                    <FaEye className="h-5 w-5 text-white/50 group-hover:text-[#ffeb00] transition-colors" />
                   )}
                 </button>
               </div>
@@ -132,33 +184,36 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full py-3 rounded-xl font-semibold text-white shadow-lg transform transition-all duration-200 ${
+              className={`w-full py-4 rounded-xl font-bold text-[#000957] shadow-lg transform transition-all duration-300 ${
                 loading
-                  ? "bg-white/20 cursor-not-allowed"
-                  : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 hover:scale-[1.02] active:scale-[0.98]"
+                  ? "bg-white/20 cursor-not-allowed text-white"
+                  : "bg-gradient-to-r from-[#ffeb00] to-[#ffd700] hover:from-[#ffd700] hover:to-[#ffeb00] hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(255,235,0,0.5)] active:scale-[0.98]"
               }`}
             >
               {loading ? (
-                <span className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                <span className="flex items-center justify-center gap-3">
+                  <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                   Logging in...
                 </span>
               ) : (
-                "Sign In"
+                <span className="flex items-center justify-center gap-2">
+                  Sign In
+                  <FaArrowRight className="w-5 h-5" />
+                </span>
               )}
             </button>
           </form>
 
           {/* Register Link */}
-          <div className="mt-6 text-center">
+          <div className="mt-8 text-center">
             <p className="text-white/80">
               Don't have an account?{" "}
               <Link
                 to="/register"
-                className="text-white font-semibold hover:underline transition-all"
+                className="text-[#ffeb00] font-bold hover:text-white transition-colors duration-300 hover:underline"
               >
                 Create Account
               </Link>
@@ -167,8 +222,10 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <div className="mt-6 text-center text-white/60 text-sm">
-          <p>Secure • Encrypted • Time-Locked</p>
+        <div className="mt-6 text-center">
+          <p className="text-white/60 text-sm flex items-center justify-center gap-2">
+            <FaLock /> Your data is encrypted and secure
+          </p>
         </div>
       </div>
     </div>
