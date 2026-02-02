@@ -150,7 +150,7 @@ export default function VaultsPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate(`/vaults/${vault._id}`)}
-            className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-[#ffeb00] bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-[#ffeb00] bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
           >
             <EyeIcon className="w-4 h-4" />
             View
@@ -158,7 +158,7 @@ export default function VaultsPage() {
           {isOwner && (
             <button
               onClick={() => handleDeleteVault(vault._id)}
-              className="flex items-center justify-center w-8 h-8 text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+              className="flex items-center justify-center w-8 h-8 text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors cursor-pointer"
             >
               <TrashIcon className="w-4 h-4" />
             </button>
@@ -199,7 +199,7 @@ export default function VaultsPage() {
           <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 shadow-lg">
             <button
               onClick={() => setShowCreateForm(!showCreateForm)}
-              className="w-full flex items-center justify-between p-4 sm:p-6 transition-colors hover:bg-white/5"
+              className="w-full flex items-center justify-between p-4 sm:p-6 transition-colors hover:bg-white/5 cursor-pointer"
             >
               <div className="flex items-center gap-3 sm:gap-4">
                 <div className="bg-gradient-to-br from-[#ffeb00] to-[#ffd700] text-[#000957] p-2 sm:p-3 rounded-lg sm:rounded-xl shadow-lg">
@@ -284,7 +284,7 @@ export default function VaultsPage() {
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="flex items-center justify-center gap-2 w-full sm:w-auto font-bold text-[#000957] bg-gradient-to-r from-[#ffeb00] to-[#ffd700] hover:from-[#ffd700] hover:to-[#ffeb00] px-8 py-3 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-100"
+                      className="flex items-center justify-center gap-2 w-full sm:w-auto font-bold text-[#000957] bg-gradient-to-r from-[#ffeb00] to-[#ffd700] hover:from-[#ffd700] hover:to-[#ffeb00] px-8 py-3 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-100 cursor-pointer"
                     >
                       {isSubmitting ? (
                         <>
@@ -308,7 +308,7 @@ export default function VaultsPage() {
           <div className="flex items-center border-b border-white/10 mb-6 sm:mb-8">
             <button
               onClick={() => setActiveTab("owned")}
-              className={`flex items-center gap-2 px-4 py-3 font-semibold transition-all ${
+              className={`flex items-center gap-2 px-4 py-3 font-semibold transition-all cursor-pointer ${
                 activeTab === "owned"
                   ? "text-[#ffeb00] border-b-2 border-[#ffeb00]"
                   : "text-white/70 hover:text-white"
@@ -322,7 +322,7 @@ export default function VaultsPage() {
             </button>
             <button
               onClick={() => setActiveTab("participating")}
-              className={`flex items-center gap-2 px-4 py-3 font-semibold transition-all ${
+              className={`flex items-center gap-2 px-4 py-3 font-semibold transition-all cursor-pointer ${
                 activeTab === "participating"
                   ? "text-[#ffeb00] border-b-2 border-[#ffeb00]"
                   : "text-white/70 hover:text-white"
@@ -330,7 +330,7 @@ export default function VaultsPage() {
             >
               <UserGroupIcon className="w-5 h-5" />
               Participating
-              <span className="bg-white/10 text-white/80 text-xs font-bold px-2 py-0.5 rounded-full">
+              <span className="bg-white/10 text-white/80 text-xs font-bold px-2 py-0.5 rounded-full cursor-po">
                 {participatedVaults.length}
               </span>
             </button>
