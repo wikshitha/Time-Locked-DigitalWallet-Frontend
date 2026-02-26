@@ -1,6 +1,6 @@
 // frontend/src/pages/VaultDetailPage.jsx
-import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import API from "../utils/api.js";
 import { useAuthStore } from "../store/useAuthStore.js";
 import {
@@ -12,16 +12,31 @@ import {
   restoreVaultKeyFromSealed,
 } from "../utils/cryptoUtils.js";
 import toast from "react-hot-toast";
-import { XCircleIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronLeftIcon,
+  InformationCircleIcon,
+  UserPlusIcon,
+  ArrowUpTrayIcon,
+  UserGroupIcon,
+  DocumentArrowDownIcon,
+  TrashIcon,
+  XCircleIcon,
+  ShieldCheckIcon,
+  ClockIcon,
+  ExclamationTriangleIcon,
+  CheckCircleIcon,
+  NoSymbolIcon,
+} from "@heroicons/react/24/outline";
 
 export default function VaultDetailPage() {
   const { id } = useParams();
   const { token, user } = useAuthStore();
+  const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
   const [vault, setVault] = useState(null);
   const [items, setItems] = useState([]);
   const [file, setFile] = useState(null);
-  const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [restoringKey, setRestoringKey] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
@@ -29,6 +44,10 @@ export default function VaultDetailPage() {
   const [userRole, setUserRole] = useState("");
   const [releaseStatus, setReleaseStatus] = useState(null);
   const [revokeLoading, setRevokeLoading] = useState(false);
+  const [showAddParticipant, setShowAddParticipant] = useState(false);
+  const [participantForm, setParticipantForm] = useState({ email: "", role: "beneficiary" });
+  const [isAddingParticipant, setIsAddingParticipant] = useState(false);
+  const [downloadingItem, setDownloadingItem] = useState(null);
 
   // ---------------- Fetch Vault ----------------
   const fetchVault = async () => {
@@ -40,16 +59,12 @@ export default function VaultDetailPage() {
       setItems(res.data.items || []);
       setCanAccessFiles(res.data.canAccessFiles || false);
       setUserRole(res.data.userRole || "");
-      
-      // Check if current user is the vault owner
       setIsOwner(res.data.isOwner || false);
-
-      // Fetch release status for both owners and participants
       fetchReleaseStatus();
     } catch (err) {
       toast.error("Failed to load vault details");
       console.error("Error fetching vault:", err);
-      setMessage("❌ Failed to load vault details");
+      navigate("/vaults");
     }
   };
 
@@ -61,9 +76,10 @@ export default function VaultDetailPage() {
       });
       setReleaseStatus(res.data);
     } catch (err) {
-      toast.error("Failed to fetch release status");
-      console.error("Error fetching release status:", err);
-      
+      if (err.response?.status !== 404) {
+        toast.error("Failed to fetch release status");
+        console.error("Error fetching release status:", err);
+      }
     }
   };
 
@@ -79,58 +95,39 @@ export default function VaultDetailPage() {
 
       try {
         setRestoringKey(true);
-
-        // First, try to get sealed key for participants (beneficiaries/witnesses)
         if (!isOwner) {
           try {
             const sealedRes = await API.get(`/api/vaults/${id}/sealed-key`, {
               headers: { Authorization: `Bearer ${token}` },
             });
-
             if (sealedRes.data.encKey) {
-              // Get user's private key from localStorage
               const privateKeyPem = localStorage.getItem(`privateKey_${user.email}`);
-              if (!privateKeyPem) {
-                throw new Error("Your private key is not available. Please login again.");
-              }
-
-              // Unwrap the vault key using private key
+              if (!privateKeyPem) throw new Error("Your private key is not available. Please login again.");
               await restoreVaultKeyFromSealed(id, sealedRes.data.encKey, privateKeyPem);
               toast.success("Vault key restored successfully!");
               return;
             }
           } catch (sealedErr) {
-            // Silently continue to password backup for participants
             console.warn("Sealed key not available, trying password backup:", sealedErr);
           }
         }
 
-        // Fallback: try password-based backup (for owners)
         const res = await API.get(`/api/keybackup/${id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         const encryptedVaultKey = res.data.encryptedVaultKey;
         if (!encryptedVaultKey) {
-          // No backup exists yet - this is normal for new vaults, silently continue
-          console.log("No vault key backup found yet. Will be created on first file upload.");
+          console.log("No vault key backup found yet.");
           return;
         }
-
-        const decryptedVaultKeyB64 = await decryptVaultKeyFromBackup(
-          encryptedVaultKey,
-          user.email
-        );
-
+        const decryptedVaultKeyB64 = await decryptVaultKeyFromBackup(encryptedVaultKey, user.email);
         localStorage.setItem(`vaultKey_${id}`, decryptedVaultKeyB64);
         toast.success("Vault key restored successfully!");
       } catch (err) {
-        // Only show error if it's not a 404 (missing backup is normal for new vaults)
         if (err.response?.status !== 404) {
           console.warn("Vault key restore failed:", err);
           toast.error("Unable to restore vault key. " + (err.message || "You may need to re-authenticate."));
         } else {
-          // 404 means no backup exists yet - normal for new vaults, don't show error
           console.log("No vault key backup found. Will be created when you upload the first file.");
         }
       } finally {
@@ -144,12 +141,11 @@ export default function VaultDetailPage() {
   // ---------------- Upload Encrypted File ----------------
   const handleUpload = async (e) => {
     e.preventDefault();
-    if (!file) return alert("Please select a file");
+    if (!file) return toast.error("Please select a file");
 
+    setUploading(true);
+    const toastId = toast.loading("Encrypting and uploading...");
     try {
-      setUploading(true);
-      toast("Encrypting and uploading...");
-
       const { encryptedData, encKey } = await encryptFileForVault(file, id);
       const metadata = { name: file.name, type: file.type, size: file.size };
 
@@ -159,13 +155,9 @@ export default function VaultDetailPage() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // 🔐 Backup vault key to server
       const vaultKeyB64 = localStorage.getItem(`vaultKey_${id}`);
       if (vaultKeyB64) {
-        const encryptedVaultKey = await encryptVaultKeyForBackup(
-          vaultKeyB64,
-          user.email
-        );
+        const encryptedVaultKey = await encryptVaultKeyForBackup(vaultKeyB64, user.email);
         await API.post(
           "/api/keybackup/upload",
           { vaultId: id, encryptedVaultKey },
@@ -173,14 +165,13 @@ export default function VaultDetailPage() {
         );
       }
 
-      toast.success("File encrypted, uploaded & key backed up!");
-      setMessage("✅ File encrypted, uploaded & key backed up!");
+      toast.success("File uploaded & key backed up!", { id: toastId });
       setFile(null);
+      if(fileInputRef.current) fileInputRef.current.value = "";
       fetchVault();
     } catch (err) {
-      toast.error("Upload failed: " + (err.response?.data?.message || err.message));
+      toast.error("Upload failed: " + (err.response?.data?.message || err.message), { id: toastId });
       console.error("Upload failed:", err);
-      setMessage("❌ Upload failed: " + (err.response?.data?.message || err.message));
     } finally {
       setUploading(false);
     }
@@ -188,13 +179,11 @@ export default function VaultDetailPage() {
 
   // ---------------- Decrypt & Download ----------------
   const handleDecryptDownload = async (item) => {
+    setDownloadingItem(item._id);
+    const toastId = toast.loading(`Downloading & decrypting ${item.metadata?.name}...`);
     try {
-
-      setMessage(` Downloading & decrypting ${item.metadata?.name}...`);
-
       const res = await fetch(item.fileUrl);
       const encryptedArrayBuffer = await res.arrayBuffer();
-
       const array = new Uint8Array(encryptedArrayBuffer);
       let binary = "";
       const chunkSize = 0x8000;
@@ -203,15 +192,9 @@ export default function VaultDetailPage() {
       }
       const encryptedDataB64 = btoa(binary);
 
-      const decryptedArrayBuffer = await decryptFileForVault(
-        encryptedDataB64,
-        item.encKey,
-        id
-      );
+      const decryptedArrayBuffer = await decryptFileForVault(encryptedDataB64, item.encKey, id);
 
-      const blob = new Blob([decryptedArrayBuffer], {
-        type: item.metadata?.type || "application/octet-stream",
-      });
+      const blob = new Blob([decryptedArrayBuffer], { type: item.metadata?.type || "application/octet-stream" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -219,449 +202,457 @@ export default function VaultDetailPage() {
       a.click();
       URL.revokeObjectURL(url);
 
-      toast.success(` ${item.metadata?.name} decrypted successfully!`);
-      setMessage(` ${item.metadata?.name} decrypted successfully!`);
+      toast.success(`${item.metadata?.name} decrypted successfully!`, { id: toastId });
     } catch (err) {
       console.error("Decryption failed:", err);
-      toast.error(" Failed to decrypt or download file.");
-      setMessage(" Failed to decrypt or download file.");
+      toast.error("Failed to decrypt or download file.", { id: toastId });
+    } finally {
+      setDownloadingItem(null);
+    }
+  };
+
+  // ---------------- Add Participant ----------------
+  const handleAddParticipant = async (e) => {
+    e.preventDefault();
+    setIsAddingParticipant(true);
+    const toastId = toast.loading("Adding participant...");
+    try {
+      const res = await API.post(`/api/vaults/${id}/participant`, participantForm, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setVault(res.data.vault);
+      toast.success("Participant added successfully!", { id: toastId });
+      setShowAddParticipant(false);
+      setParticipantForm({ email: "", role: "beneficiary" });
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to add participant.", { id: toastId });
+      console.error("Add participant failed:", err);
+    } finally {
+      setIsAddingParticipant(false);
     }
   };
 
   // ---------------- Remove Participant ----------------
   const handleRemoveParticipant = async (participantId) => {
     if (!window.confirm("Are you sure you want to remove this participant?")) return;
-
+    const toastId = toast.loading("Removing participant...");
     try {
       const res = await API.delete(`/api/vaults/${id}/participant/${participantId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setVault(res.data.vault);
-      toast.success("Participant removed successfully!");
+      toast.success("Participant removed successfully!", { id: toastId });
     } catch (err) {
-      toast.error("Failed to remove participant: " );
+      toast.error("Failed to remove participant.", { id: toastId });
       console.error("Remove participant failed:", err);
     }
   };
 
   // ---------------- Revoke Release ----------------
   const handleRevokeRelease = async () => {
-    const reason = prompt(
-      `Are you sure you want to revoke the release for "${vault.title}"?\n\nOptional: Enter a reason for revocation:`
-    );
-
-    if (reason === null) return; // User clicked cancel
+    const reason = prompt(`Are you sure you want to revoke the release for "${vault.title}"?\n\nOptional: Enter a reason for revocation:`);
+    if (reason === null) return;
 
     setRevokeLoading(true);
+    const toastId = toast.loading("Revoking release...");
     try {
       await API.post(
         "/api/releases/revoke",
-        { 
-          releaseId: releaseStatus.releaseId, 
-          reason: reason || "No reason provided" 
-        },
+        { releaseId: releaseStatus.releaseId, reason: reason || "No reason provided" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      toast.success("✅ Release revoked successfully! The system will continue monitoring for inactivity.");
-      fetchReleaseStatus(); // Refresh release status
-      fetchVault(); // Refresh vault data
+      toast.success("Release revoked successfully!", { id: toastId });
+      fetchReleaseStatus();
+      fetchVault();
     } catch (err) {
       console.error("Error revoking release:", err);
-      toast.error(err.response?.data?.message || "Failed to revoke release");
+      toast.error(err.response?.data?.message || "Failed to revoke release", { id: toastId });
     } finally {
       setRevokeLoading(false);
     }
   };
 
+  // ---------------- Confirm/Reject Release ----------------
+  const handleConfirmRelease = async (confirmationStatus) => {
+    const toastId = toast.loading("Submitting confirmation...");
+    try {
+      await API.post(
+        "/api/releases/confirm",
+        { releaseId: releaseStatus.releaseId, status: confirmationStatus, comment: `${confirmationStatus} by witness` },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success(`Release ${confirmationStatus} successfully!`, { id: toastId });
+      fetchReleaseStatus();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to submit confirmation.", { id: toastId });
+    }
+  };
+
+  const formatBytes = (bytes, decimals = 2) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  }
+
   // ---------------- UI Render ----------------
-  if (!vault)
+  if (!vault) {
     return (
-      <div className="flex h-screen items-center justify-center text-gray-600">
-        Loading vault...
+      <div className="min-h-screen w-full bg-gradient-to-br from-[#000957] via-[#1a2470] to-[#344cb7] text-white flex justify-center items-center">
+        <div className="w-12 h-12 border-4 border-t-[#ffeb00] border-r-[#ffeb00] border-b-[#ffeb00]/30 border-l-[#ffeb00]/30 rounded-full animate-spin"></div>
       </div>
     );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-3xl mx-auto bg-white shadow-lg rounded-2xl p-6">
-        <h1 className="text-3xl font-bold mb-2 text-gray-800">Vault: {vault.title}</h1>
-        <p className="text-gray-500 mb-6">
-          Owner: {isOwner 
-            ? `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || user?.email || "You"
-            : `${vault.ownerId?.firstName || ""} ${vault.ownerId?.lastName || ""}`.trim() || "Unknown"
-          } | 
-          Created: {new Date(vault.createdAt).toLocaleString()}
-          {!isOwner && (
-            <span className="ml-2 text-blue-600 font-medium">
-              (You are a {userRole})
-            </span>
-          )}
-        </p>
-
-        {/* Owner Revoke Section - Only show during grace period */}
-        {isOwner && releaseStatus?.hasActiveRelease && 
-         releaseStatus.status === "pending" && releaseStatus.inGracePeriod && (
-          <div className="mb-6 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h3 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
-                  <XCircleIcon className="w-5 h-5" />
-                  🚨 Release in Grace Period
-                </h3>
-                <p className="text-sm text-red-700 mb-1">
-                  A release has been triggered for this vault due to inactivity.
-                </p>
-                <p className="text-sm text-red-600 font-medium">
-                  ⏳ Grace period ends: {new Date(releaseStatus.gracePeriodEnd).toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-600 mt-2 italic">
-                  You can revoke this release during the grace period. After revocation, 
-                  the system will continue monitoring for inactivity.
-                </p>
-              </div>
-              <button
-                onClick={handleRevokeRelease}
-                disabled={revokeLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-sm rounded-lg font-semibold transition-colors active:scale-95 disabled:cursor-not-allowed shadow-md whitespace-nowrap ml-4"
-                title="Revoke this release during grace period"
-              >
-                <XCircleIcon className="w-5 h-5" />
-                {revokeLoading ? "Revoking..." : "Revoke Release"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Release Status for Participants */}
-        {!isOwner && releaseStatus && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h3 className="font-semibold text-blue-800 mb-2">📋 Release Status</h3>
-            {!releaseStatus.hasActiveRelease && (
-              <p className="text-sm text-gray-600">No active release for this vault.</p>
-            )}
-            {releaseStatus.hasActiveRelease && (
-              <div className="text-sm space-y-1">
-                <p>
-                  <span className="font-medium">Status:</span>{" "}
-                  <span className="capitalize">{releaseStatus.status}</span>
-                </p>
-                {releaseStatus.inGracePeriod && (
-                  <p className="text-amber-600">
-                    ⏳ Grace period active until{" "}
-                    {new Date(releaseStatus.gracePeriodEnd).toLocaleDateString()}
-                  </p>
-                )}
-                {releaseStatus.status === "in_progress" && (
-                  <p>
-                    Approvals: {releaseStatus.approvalsReceived}/{releaseStatus.approvalsNeeded}
-                  </p>
-                )}
-                {releaseStatus.inTimeLock && (
-                  <p className="text-amber-600">
-                    🔒 Time lock active until{" "}
-                    {new Date(releaseStatus.countdownEnd).toLocaleDateString()}
-                  </p>
-                )}
-                {releaseStatus.isReleased && (
-                  <p className="text-green-600 font-medium">
-                    ✅ Vault has been released! You can now access the files.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Witness Approval Section */}
-        {!isOwner && userRole === "witness" && releaseStatus?.hasActiveRelease && 
-         !releaseStatus.inGracePeriod && !releaseStatus.isReleased && 
-         releaseStatus.status !== "rejected" && !releaseStatus.userHasConfirmed && (
-          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <h3 className="font-semibold text-yellow-800 mb-3">⚖️ Witness Approval Required</h3>
-            <p className="text-sm text-gray-600 mb-3">
-              The grace period has ended. As a witness, you need to approve or reject this release.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={async () => {
-                  try {
-                    await API.post(
-                      "/api/releases/confirm",
-                      { 
-                        releaseId: releaseStatus.releaseId, 
-                        status: "approved",
-                        comment: "Approved by witness"
-                      },
-                      { headers: { Authorization: `Bearer ${token}` } }
-                    );
-                    toast.success("Release approved successfully!");
-                    fetchReleaseStatus();
-                  } catch (err) {
-                    toast.error("Failed to approve release: ");
-                  }
-                }}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              >
-                Approve Release
-              </button>
-              <button
-                onClick={async () => {
-                  const comment = prompt("Please provide a reason for rejection:");
-                  if (!comment) return;
-                  try {
-                    await API.post(
-                      "/api/releases/confirm",
-                      { 
-                        releaseId: releaseStatus.releaseId, 
-                        status: "rejected",
-                        comment
-                      },
-                      { headers: { Authorization: `Bearer ${token}` } }
-                    );
-                    toast.success("Release rejected successfully!");
-                    fetchReleaseStatus();
-                  } catch (err) {
-                    toast.error("Failed to reject release: ");
-                  }
-                }}
-                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-              >
-                Reject Release
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Show confirmation status if user has already confirmed */}
-        {!isOwner && userRole === "witness" && releaseStatus?.hasActiveRelease && 
-         releaseStatus.userHasConfirmed && !releaseStatus.isReleased && (
-          <div className={`mb-6 p-4 border rounded-lg ${
-            releaseStatus.userConfirmationStatus === "approved" 
-              ? "bg-green-50 border-green-200" 
-              : "bg-red-50 border-red-200"
-          }`}>
-            <h3 className={`font-semibold mb-2 ${
-              releaseStatus.userConfirmationStatus === "approved" 
-                ? "text-green-800" 
-                : "text-red-800"
-            }`}>
-              {releaseStatus.userConfirmationStatus === "approved" 
-                ? "✅ You have approved this release" 
-                : "❌ You have rejected this release"}
-            </h3>
-            <p className="text-sm text-gray-600">
-              {releaseStatus.userConfirmationStatus === "approved" 
-                ? "Your approval has been recorded. Waiting for other witnesses or time-lock completion." 
-                : "Your rejection has been recorded. The release process has been stopped."}
-            </p>
-          </div>
-        )}
-
-        {/* Upload Section - Only for Vault Owners */}
-        {isOwner && (
-          <div className="mb-8 border-t pt-4">
-            <h2 className="text-xl font-semibold mb-3 text-gray-700">
-              Upload Encrypted File
-            </h2>
-            <form onSubmit={handleUpload} className="flex items-center space-x-3">
-              <input
-                type="file"
-                onChange={(e) => setFile(e.target.files[0])}
-                className="flex-1 border rounded px-3 py-2"
-              />
-              <button
-                type="submit"
-                disabled={uploading}
-                className={`px-4 py-2 rounded text-white ${
-                  uploading
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-blue-600 hover:bg-blue-700"
-                }`}
-              >
-                {uploading ? "Encrypting..." : "Upload"}
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* Participants Section - Only for Vault Owners */}
-        {isOwner && (
-          <div className="border-t pt-4 mt-6">
-            <h2 className="text-xl font-semibold mb-3 text-gray-700">Manage Participants</h2>
-
-            {/* Add Participant */}
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const email = e.target.email.value;
-                const role = e.target.role.value;
-                try {
-                  const res = await API.post(
-                    "/api/vaults/participant",
-                    { vaultId: id, email, role },
-                    { headers: { Authorization: `Bearer ${token}` } }
-                  );
-                  toast.success("Participant added successfully!");
-                  // Refetch vault to get populated participant data
-                  await fetchVault();
-                  setMessage(`✅ ${email} added as ${role}`);
-                  e.target.reset();
-                } catch (err) {
-                  console.error("Add participant failed:", err);
-                  toast.error("Failed to add participant: " );
-                }
-              }}
-              className="space-y-3"
+    <div className="min-h-screen w-full bg-gradient-to-br from-[#000957] via-[#1a2470] to-[#344cb7] text-white font-sans">
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-gradient-to-r from-[#000957]/80 via-[#1a2470]/80 to-[#000957]/80 backdrop-blur-xl shadow-2xl border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16 sm:h-20">
+            <Link
+              to="/vaults"
+              className="flex items-center gap-2 text-sm font-bold text-[#ffeb00] hover:text-white transition-colors group cursor-pointer"
             >
-              <input
-                type="email"
-                name="email"
-                placeholder="Participant Email"
-                required
-                className="w-full border rounded px-3 py-2"
-              />
-              <select name="role" required className="w-full border rounded px-3 py-2">
-                <option value="">Select Role</option>
-                <option value="beneficiary">Beneficiary</option>
-                <option value="shared">Shared</option>
-                <option value="witness">Witness</option>
-              </select>
-              <button
-                type="submit"
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              >
-                Add Participant
-              </button>
-            </form>
-
-            {/* List Participants */}
-            {vault?.participants?.length > 0 && (
-              <div className="mt-4">
-                <h3 className="font-semibold text-gray-700 mb-2">Current Participants:</h3>
-                <ul className="space-y-2 text-sm text-gray-600">
-                  {vault.participants.map((p) => (
-                    <li
-                      key={p._id}
-                      className="flex justify-between items-center border rounded px-3 py-2"
-                    >
-                      <span>
-                        • {p.participantId?.firstName} {p.participantId?.lastName} (
-                        {p.participantId?.email}) —{" "}
-                        <span className="italic capitalize">{p.role}</span>
-                      </span>
-                      <button
-                        onClick={() => handleRemoveParticipant(p.participantId?._id)}
-                        className="text-red-600 hover:underline text-xs"
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+              <div className="bg-white/10 p-2 rounded-lg group-hover:bg-white/20 transition-colors">
+                <ChevronLeftIcon className="w-5 h-5" />
               </div>
-            )}
-          </div>
-        )}
-
-        {/* Participants View for Non-Owners */}
-        {!isOwner && vault?.participants?.length > 0 && (
-          <div className="border-t pt-4 mt-6">
-            <h2 className="text-xl font-semibold mb-3 text-gray-700">Participants</h2>
-            <ul className="space-y-2 text-sm text-gray-600">
-              {vault.participants.map((p) => (
-                <li
-                  key={p._id}
-                  className="flex justify-between items-center border rounded px-3 py-2"
-                >
-                  <span>
-                    • {p.participantId?.firstName} {p.participantId?.lastName} (
-                    {p.participantId?.email}) —{" "}
-                    <span className="italic capitalize">{p.role}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* File List - Conditional Access Based on Role and Release Status */}
-        <div className="border-t pt-4 mt-6">
-          <h2 className="text-xl font-semibold mb-3 text-gray-700">Stored Items</h2>
-          
-          {!canAccessFiles && !isOwner && (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-amber-800 font-medium">🔒 Files are locked</p>
-              <p className="text-sm text-gray-600 mt-1">
-                {userRole === "beneficiary" 
-                  ? "As a beneficiary, you can only access files after the vault is fully released (grace period + approvals + time lock complete)."
-                  : userRole === "witness"
-                  ? "As a witness, you cannot access vault files. Your role is to approve or reject the release. Only beneficiaries can access files after release."
-                  : userRole === "shared"
-                  ? "As a shared participant, you cannot access vault files. Only beneficiaries can access files after the vault is released."
-                  : "You can only access files after the vault is fully released."}
+              <span className="hidden sm:inline">Back to Vaults</span>
+            </Link>
+            <div className="text-center">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-black bg-gradient-to-r from-white via-[#ffeb00] to-white bg-clip-text text-transparent truncate">
+                {vault.title}
+              </h1>
+              <p className="text-xs text-white/60 hidden sm:block">
+                {isOwner ? "You are the owner" : `You are a ${userRole}`}
               </p>
             </div>
-          )}
+            <div className="w-24 sm:w-40"></div> {/* Spacer */}
+          </div>
+        </div>
+      </header>
 
-          {canAccessFiles && items.length === 0 && (
-            <p className="text-gray-500">No files uploaded yet.</p>
-          )}
-          
-          {canAccessFiles && items.length > 0 && (
-            <ul className="space-y-3">
-              {items.map((item) => (
-                <li
-                  key={item._id}
-                  className="flex items-center justify-between border p-3 rounded hover:bg-gray-50"
-                >
-                  <div>
-                    <p className="font-medium text-gray-800">
-                      {item.metadata?.name || "Unnamed File"}
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column / Main on mobile */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Owner Revoke Section */}
+            {isOwner && releaseStatus?.hasActiveRelease && releaseStatus.status === "pending" && releaseStatus.inGracePeriod && (
+              <div className="bg-red-900/50 border-2 border-red-500/80 rounded-2xl p-5 shadow-lg">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <h3 className="font-bold text-lg text-red-300 flex items-center gap-2">
+                      <ExclamationTriangleIcon className="w-6 h-6" />
+                      Release in Grace Period
+                    </h3>
+                    <p className="text-sm text-red-300/90 mt-1">
+                      A release has been triggered due to inactivity. You can revoke it before the grace period ends.
                     </p>
-                    <p className="text-sm text-gray-500">
-                      {item.metadata?.type || "Unknown"} •{" "}
-                      {(item.metadata?.size / 1024).toFixed(1)} KB
+                    <p className="text-sm text-red-200 font-semibold mt-2">
+                      ⏳ Ends: {new Date(releaseStatus.gracePeriodEnd).toLocaleString()}
                     </p>
                   </div>
-                  {item.fileUrl && (
-                    <button
-                      onClick={() => handleDecryptDownload(item)}
-                      className="text-blue-600 hover:underline"
-                    >
-                      Decrypt & Download
-                    </button>
+                  <button
+                    onClick={handleRevokeRelease}
+                    disabled={revokeLoading}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-500 text-white text-sm rounded-lg font-bold transition-colors active:scale-95 shadow-md whitespace-nowrap cursor-pointer"
+                  >
+                    <XCircleIcon className="w-5 h-5" />
+                    {revokeLoading ? "Revoking..." : "Revoke Release"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Witness Approval Section */}
+            {!isOwner && userRole === "witness" && releaseStatus?.hasActiveRelease && !releaseStatus.inGracePeriod && !releaseStatus.isReleased && releaseStatus.status !== "rejected" && !releaseStatus.userHasConfirmed && (
+              <div className="bg-yellow-900/50 border-2 border-yellow-500/80 rounded-2xl p-5 shadow-lg">
+                <h3 className="font-bold text-lg text-yellow-300 flex items-center gap-2 mb-3">
+                  <ShieldCheckIcon className="w-6 h-6" />
+                  Witness Approval Required
+                </h3>
+                <p className="text-sm text-yellow-300/90 mb-4">
+                  The grace period has ended. As a witness, you must approve or reject this release.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={() => handleConfirmRelease("approved")}
+                    className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg font-bold transition-colors active:scale-95 shadow-md cursor-pointer"
+                  >
+                    <CheckCircleIcon className="w-5 h-5" />
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => handleConfirmRelease("rejected")}
+                    className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg font-bold transition-colors active:scale-95 shadow-md cursor-pointer"
+                  >
+                    <NoSymbolIcon className="w-5 h-5" />
+                    Reject
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* File Upload Section */}
+            {isOwner && (
+              <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6 shadow-lg">
+                <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-3">
+                  <ArrowUpTrayIcon className="w-6 h-6 text-[#ffeb00]" />
+                  Upload New File
+                </h2>
+                <form onSubmit={handleUpload}>
+                  <div 
+                    className="relative border-2 border-dashed border-white/30 rounded-lg p-8 text-center cursor-pointer hover:border-[#ffeb00] hover:bg-white/5 transition-colors"
+                    onClick={() => fileInputRef.current.click()}
+                  >
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={(e) => setFile(e.target.files[0])}
+                      className="hidden"
+                      disabled={uploading}
+                    />
+                    <ArrowUpTrayIcon className="w-10 h-10 mx-auto text-white/50 mb-2" />
+                    {file ? (
+                      <p className="text-md font-semibold text-[#ffeb00]">{file.name}</p>
+                    ) : (
+                      <p className="text-md text-white/70">Click or drag file to this area to upload</p>
+                    )}
+                  </div>
+                  {file && (
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={uploading}
+                        className="flex items-center justify-center gap-2 w-full sm:w-auto font-bold text-[#000957] bg-gradient-to-r from-[#ffeb00] to-[#ffd700] hover:from-[#ffd700] hover:to-[#ffeb00] px-8 py-3 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-100"
+                      >
+                        {uploading ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-t-[#000957] border-r-[#000957] border-b-[#000957]/30 border-l-[#000957]/30 rounded-full animate-spin"></div>
+                            Uploading...
+                          </>
+                        ) : (
+                          "Confirm & Upload"
+                        )}
+                      </button>
+                    </div>
                   )}
-                </li>
-              ))}
-            </ul>
-          )}
+                </form>
+              </div>
+            )}
+
+            {/* Files List */}
+            <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 shadow-lg">
+              <div className="p-6">
+                <h2 className="text-xl font-bold text-white mb-4">Vault Items ({items.length})</h2>
+                {restoringKey && <p className="text-sm text-yellow-400">Restoring vault key...</p>}
+                
+                <div className="space-y-3">
+                  {items.length > 0 ? (
+                    items.map((item) => (
+                      <div key={item._id} className="bg-white/5 p-3 rounded-lg flex items-center justify-between gap-4 transition-colors hover:bg-white/10">
+                        <div className="flex-1 truncate">
+                          <p className="font-semibold text-white truncate">{item.metadata?.name || "Unnamed File"}</p>
+                          <p className="text-xs text-white/60">
+                            {formatBytes(item.metadata?.size || 0)}
+                          </p>
+                        </div>
+                        {canAccessFiles ? (
+                          <button
+                            onClick={() => handleDecryptDownload(item)}
+                            disabled={downloadingItem === item._id}
+                            className="flex items-center gap-2 text-sm font-semibold text-[#ffeb00] bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait cursor-pointer"
+                          >
+                            {downloadingItem === item._id ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-t-yellow-400 border-r-yellow-400 border-b-yellow-400/30 border-l-yellow-400/30 rounded-full animate-spin"></div>
+                                <span className="hidden sm:inline">Processing...</span>
+                              </>
+                            ) : (
+                              <>
+                                <DocumentArrowDownIcon className="w-5 h-5" />
+                                <span className="hidden sm:inline">Download</span>
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2 text-sm text-white/50" title="Files are locked until the release is complete">
+                            <LockClosedIcon className="w-5 h-5" />
+                            <span className="hidden sm:inline">Locked</span>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 px-4 border-2 border-dashed border-white/20 rounded-lg">
+                      <p className="text-lg font-semibold text-white/90">This vault is empty.</p>
+                      {isOwner && <p className="text-sm text-white/60 mt-1">Upload a file to get started.</p>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column / Secondary on mobile */}
+          <div className="space-y-8">
+            {/* Release Status Card */}
+            <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6 shadow-lg">
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-3">
+                <InformationCircleIcon className="w-6 h-6 text-[#ffeb00]" />
+                Release Status
+              </h2>
+              {!releaseStatus || !releaseStatus.hasActiveRelease ? (
+                <div className="flex items-center gap-3 text-green-400">
+                  <ShieldCheckIcon className="w-5 h-5" />
+                  <p className="font-semibold">Vault is Secure</p>
+                </div>
+              ) : (
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-white/80 w-24">Status:</span>
+                    <span className={`font-bold capitalize px-2 py-0.5 rounded-full text-xs ${
+                      releaseStatus.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' :
+                      releaseStatus.status === 'in_progress' ? 'bg-blue-500/20 text-blue-300' :
+                      releaseStatus.status === 'released' ? 'bg-green-500/20 text-green-300' :
+                      'bg-red-500/20 text-red-300'
+                    }`}>
+                      {releaseStatus.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                  {releaseStatus.inGracePeriod && (
+                    <div className="flex items-start gap-3 text-yellow-400">
+                      <ClockIcon className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold">Grace Period Active</p>
+                        <p className="text-xs text-white/70">Ends: {new Date(releaseStatus.gracePeriodEnd).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  )}
+                  {releaseStatus.status === 'in_progress' && (
+                    <div className="flex items-start gap-3 text-blue-400">
+                      <ShieldCheckIcon className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold">Approvals: {releaseStatus.approvalsReceived}/{releaseStatus.approvalsNeeded}</p>
+                        <p className="text-xs text-white/70">Waiting for witness confirmations.</p>
+                      </div>
+                    </div>
+                  )}
+                   {releaseStatus.inTimeLock && (
+                    <div className="flex items-start gap-3 text-purple-400">
+                      <ClockIcon className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold">Time Lock Active</p>
+                        <p className="text-xs text-white/70">Unlocks: {new Date(releaseStatus.countdownEnd).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  )}
+                  {releaseStatus.isReleased && (
+                    <div className="flex items-center gap-3 text-green-400">
+                      <CheckCircleIcon className="w-5 h-5" />
+                      <p className="font-semibold">Vault Released!</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Participants Card */}
+            <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6 shadow-lg">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                  <UserGroupIcon className="w-6 h-6 text-[#ffeb00]" />
+                  Participants
+                </h2>
+                {isOwner && (
+                  <button
+                    onClick={() => setShowAddParticipant(!showAddParticipant)}
+                    className="flex items-center gap-1.5 text-sm font-semibold text-[#ffeb00] bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <UserPlusIcon className="w-4 h-4" />
+                    Add
+                  </button>
+                )}
+              </div>
+
+              {showAddParticipant && (
+                <form onSubmit={handleAddParticipant} className="space-y-4 mb-6 p-4 bg-black/20 rounded-lg animate-fade-in">
+                  <div>
+                    <label className="block text-sm font-semibold text-[#ffeb00] mb-2">Participant Email</label>
+                    <input
+                      type="email"
+                      placeholder="participant@example.com"
+                      value={participantForm.email}
+                      onChange={(e) => setParticipantForm({ ...participantForm, email: e.target.value })}
+                      className="w-full bg-white/5 border-2 border-white/20 rounded-lg px-4 py-2.5 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#ffeb00] focus:border-[#ffeb00] transition"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-[#ffeb00] mb-2">Role</label>
+                    <select
+                      value={participantForm.role}
+                      onChange={(e) => setParticipantForm({ ...participantForm, role: e.target.value })}
+                      className="w-full bg-white/5 border-2 border-white/20 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-[#ffeb00] focus:border-[#ffeb00] transition"
+                    >
+                      <option className="bg-[#1a2470] text-white" value="beneficiary">Beneficiary</option>
+                      <option className="bg-[#1a2470] text-white" value="witness">Witness</option>
+                      <option className="bg-[#1a2470] text-white" value="sharer">Sharer</option>
+                    </select>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={isAddingParticipant}
+                      className="flex items-center justify-center gap-2 w-full sm:w-auto font-bold text-[#000957] bg-gradient-to-r from-[#ffeb00] to-[#ffd700] hover:from-[#ffd700] hover:to-[#ffeb00] px-6 py-2.5 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      {isAddingParticipant ? "Adding..." : "Add Participant"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="space-y-3">
+                {/* Owner Info */}
+                <div className="bg-white/5 p-3 rounded-lg flex items-center justify-between gap-4">
+                  <div className="flex-1 truncate">
+                    <p className="font-semibold text-white truncate">{vault.ownerId.firstName} {vault.ownerId.lastName}</p>
+                    <p className="text-xs text-white/60">{vault.ownerId.email}</p>
+                  </div>
+                  <span className="text-xs font-bold uppercase px-2.5 py-1 rounded-full bg-[#ffeb00] text-[#000957]">
+                    Owner
+                  </span>
+                </div>
+                {/* Participants List */}
+                {vault.participants.map(({ participantId: p, role }) => (
+                  p && <div key={p._id} className="bg-white/5 p-3 rounded-lg flex items-center justify-between gap-4 transition-colors hover:bg-white/10">
+                    <div className="flex-1 truncate">
+                      <p className="font-semibold text-white truncate">{p.firstName} {p.lastName}</p>
+                      <p className="text-xs text-white/60">{p.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold uppercase px-2.5 py-1 rounded-full bg-white/10 text-white/80 border border-white/20">
+                        {role}
+                      </span>
+                      {isOwner && (
+                        <button
+                          onClick={() => handleRemoveParticipant(p._id)}
+                          className="flex items-center justify-center w-8 h-8 text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
-
-        {/* Message */}
-        {message && (
-          <p
-          
-            className={`mt-4 text-sm text-center ${
-
-              message.startsWith("✅") || message.startsWith("🔐")
-                ? "text-green-600"
-                : "text-red-500"
-            }`}
-          >
-            {message}
-          </p>
-        )}
-
-        <div className="mt-6 text-center">
-          <Link
-            to="/vaults"
-            className="text-blue-600 hover:underline text-sm font-medium"
-          >
-            ← Back to Vaults
-          </Link>
-        </div>
-      </div>
+      </main>
     </div>
   );
 }
