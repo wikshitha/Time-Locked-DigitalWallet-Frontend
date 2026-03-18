@@ -39,10 +39,10 @@ export default function DashboardPage() {
         r => (r.status === "pending" || r.status === "in_progress") && !r.userHasConfirmed && r.gracePeriodEnded
       );
       setPendingApprovals(needsApproval);
-      
+
       // Revokable releases (for owners during grace period) - include both statuses
       const canRevoke = ownedReleases.filter(
-        r => (r.status === "pending" || r.status === "in_progress") && !r.gracePeriodEnded
+        r => (r.status === "pending" || r.status === "in_progress") && !r.gracePeriodEnded && new Date(r.gracePeriodEnd) > new Date()
       );
       setRevokableReleases(canRevoke);
     } catch (err) {
