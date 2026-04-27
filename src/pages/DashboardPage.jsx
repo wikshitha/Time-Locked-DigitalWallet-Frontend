@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const [pendingApprovals, setPendingApprovals] = useState([]);
   const [revokableReleases, setRevokableReleases] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [approvalLoading, setApprovalLoading] = useState({});
 
   useEffect(() => {
     fetchPendingActions();
@@ -34,9 +35,9 @@ export default function DashboardPage() {
       const participantReleases = res.data.participantVaultReleases || [];
       const ownedReleases = res.data.ownedVaultReleases || [];
       
-      // Pending approvals (for witnesses) - include both "pending" and "in_progress" statuses
+      // Pending approvals (for witnesses) - show when grace period ended and witness action is needed
       const needsApproval = participantReleases.filter(
-        r => (r.status === "pending" || r.status === "in_progress") && !r.userHasConfirmed && r.gracePeriodEnded
+        r => r.status === "in_progress" && r.participantRole === "witness"
       );
       setPendingApprovals(needsApproval);
 
@@ -53,6 +54,8 @@ export default function DashboardPage() {
   };
 
   const handleApprove = async (releaseId, vaultId) => {
+    setApprovalLoading(prev => ({ ...prev, [releaseId]: true }));
+    const toastId = toast.loading("Approving release...");
     try {
       await API.post(
         `/api/releases/confirm`,
@@ -63,10 +66,12 @@ export default function DashboardPage() {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success("✅ Release approved successfully!");
+      toast.success("✅ Release approved successfully!", { id: toastId });
       fetchPendingActions(); // Refresh
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to approve release");
+      toast.error(err.response?.data?.message || "Failed to approve release", { id: toastId });
+    } finally {
+      setApprovalLoading(prev => ({ ...prev, [releaseId]: false }));
     }
   };
 
@@ -74,6 +79,8 @@ export default function DashboardPage() {
     const comment = prompt("Please provide a reason for rejection:");
     if (!comment) return;
     
+    setApprovalLoading(prev => ({ ...prev, [releaseId]: true }));
+    const toastId = toast.loading("Rejecting release...");
     try {
       await API.post(
         `/api/releases/confirm`,
@@ -84,10 +91,12 @@ export default function DashboardPage() {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success("Release rejected!");
+      toast.success("✅ Release rejected successfully!", { id: toastId });
       fetchPendingActions(); // Refresh
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to reject release");
+      toast.error(err.response?.data?.message || "Failed to reject release", { id: toastId });
+    } finally {
+      setApprovalLoading(prev => ({ ...prev, [releaseId]: false }));
     }
   };
 
@@ -243,17 +252,41 @@ export default function DashboardPage() {
                         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 shrink-0">
                           <button
                             onClick={() => handleApprove(release._id, release.vaultId?._id)}
-                            className="flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold px-4 sm:px-5 lg:px-6 py-2.5 sm:py-3 rounded-xl shadow-xl transition-all transform hover:scale-105 active:scale-95 text-sm sm:text-base"
+                            disabled={approvalLoading[release._id]}
+                            className={`flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold px-4 sm:px-5 lg:px-6 py-2.5 sm:py-3 rounded-xl shadow-xl transition-all transform hover:scale-105 active:scale-95 text-sm sm:text-base ${
+                              approvalLoading[release._id] ? 'opacity-75 cursor-not-allowed' : ''
+                            }`}
                           >
-                            <CheckCircleIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-                            Approve
+                            {approvalLoading[release._id] ? (
+                              <>
+                                <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                Approving...
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircleIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                                Approve
+                              </>
+                            )}
                           </button>
                           <button
                             onClick={() => handleReject(release._id, release.vaultId?._id)}
-                            className="flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold px-4 sm:px-5 lg:px-6 py-2.5 sm:py-3 rounded-xl shadow-xl transition-all transform hover:scale-105 active:scale-95 text-sm sm:text-base"
+                            disabled={approvalLoading[release._id]}
+                            className={`flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold px-4 sm:px-5 lg:px-6 py-2.5 sm:py-3 rounded-xl shadow-xl transition-all transform hover:scale-105 active:scale-95 text-sm sm:text-base ${
+                              approvalLoading[release._id] ? 'opacity-75 cursor-not-allowed' : ''
+                            }`}
                           >
-                            <XCircleIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-                            Reject
+                            {approvalLoading[release._id] ? (
+                              <>
+                                <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                Rejecting...
+                              </>
+                            ) : (
+                              <>
+                                <XCircleIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                                Reject
+                              </>
+                            )}
                           </button>
                         </div>
                       </div>
